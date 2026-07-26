@@ -76,6 +76,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(settings)
     }),
+  deleteAllData: () => request<void>("/api/v1/data", { method: "DELETE" }),
   models: () => request<ModelInfo[]>("/api/v1/models"),
   downloadModel: (modelId: string) =>
     request<ModelJob>(`/api/v1/models/${modelId}/download`, {

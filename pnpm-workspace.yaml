@@ -1,5 +1,4 @@
 packages:
-  - extension
-  - viewer
+  - apps/*
 allowBuilds:
   esbuild: true

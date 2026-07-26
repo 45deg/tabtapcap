@@ -186,6 +186,37 @@ impl ModelManager {
             .ok_or_else(|| anyhow!("ジョブを更新できませんでした。"))
     }
 
+    pub fn has_active_downloads(&self) -> bool {
+        self.inner
+            .jobs
+            .lock()
+            .expect("job map poisoned")
+            .values()
+            .any(|job| matches!(job.state.as_str(), "queued" | "running"))
+    }
+
+    pub async fn clear(&self) -> Result<()> {
+        if self.has_active_downloads() {
+            bail!("モデルのダウンロード中はデータを削除できません。");
+        }
+        if self.inner.models_dir.is_dir() {
+            tokio::fs::remove_dir_all(&self.inner.models_dir).await?;
+        }
+        tokio::fs::create_dir_all(&self.inner.models_dir).await?;
+        self.inner.jobs.lock().expect("job map poisoned").clear();
+        self.inner
+            .active_by_model
+            .lock()
+            .expect("model map poisoned")
+            .clear();
+        self.inner
+            .cancellations
+            .lock()
+            .expect("cancel map poisoned")
+            .clear();
+        Ok(())
+    }
+
     async fn download(
         &self,
         job_id: String,

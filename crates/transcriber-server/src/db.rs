@@ -428,6 +428,16 @@ impl Database {
             .execute("DELETE FROM sessions WHERE id=?1", [id])?
             == 1)
     }
+
+    pub fn clear_all(&self) -> Result<()> {
+        self.connect()?.execute_batch(
+            "PRAGMA secure_delete = ON;
+             DELETE FROM sessions;
+             PRAGMA wal_checkpoint(TRUNCATE);
+             VACUUM;",
+        )?;
+        Ok(())
+    }
 }
 
 fn session_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionSummary> {

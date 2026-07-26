@@ -3,13 +3,13 @@
   "private": true,
   "packageManager": "pnpm@11.1.1",
   "scripts": {
-    "dev": "concurrently -k -n server,viewer,extension -c blue,green,magenta \"pnpm dev:server\" \"pnpm --filter viewer dev\" \"pnpm --filter extension dev\"",
-    "dev:server": "cargo run --manifest-path server/Cargo.toml",
-    "tauri:dev": "pnpm --filter viewer tauri:dev",
-    "tauri:build": "pnpm --filter viewer tauri:build",
-    "build": "pnpm --filter viewer build && pnpm --filter extension build",
-    "test": "pnpm -r test && cargo test --manifest-path server/Cargo.toml",
-    "check": "pnpm -r check && cargo fmt --manifest-path server/Cargo.toml --check && cargo clippy --manifest-path server/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path server/Cargo.toml"
+    "dev": "concurrently -k -n server,desktop,extension -c blue,green,magenta \"pnpm dev:server\" \"pnpm --filter @local-transcriber/desktop dev\" \"pnpm --filter @local-transcriber/extension dev\"",
+    "dev:server": "cargo run -p local-transcriber-server",
+    "tauri:dev": "pnpm --filter @local-transcriber/desktop tauri:dev",
+    "tauri:build": "pnpm --filter @local-transcriber/desktop tauri:build",
+    "build": "pnpm --filter @local-transcriber/desktop build && pnpm --filter @local-transcriber/extension build",
+    "test": "pnpm -r test && cargo test --workspace",
+    "check": "pnpm -r check && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

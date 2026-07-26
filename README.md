@@ -3,12 +3,14 @@
 Chromeの現在のタブ音声をMac上だけで文字起こしし、句読点・文・段落を整えた日本語テキストとWebVTTを編集・保存するローカルアプリです。
 
 ```text
-extension/  Chromeタブ音声の取得と録音操作
-server/     Rust API、whisper.cpp、VAD、文章整形、SQLite
-viewer/     React ViewerとTauri macOSアプリ
+apps/
+  desktop/    React ViewerとTauri macOSアプリ
+  extension/  Chromeタブ音声の取得と録音操作
+crates/
+  transcriber-server/  Rust API、whisper.cpp、VAD、文章整形、SQLite
 ```
 
-話者分析は現在無効です。録音・モデル・設定・文字起こしは外部APIへ送信されません。モデルの初回ダウンロードだけインターネットへ接続します。
+録音・モデル・設定・文字起こしは外部APIへ送信されません。モデルの初回ダウンロードだけインターネットへ接続します。
 
 ## Macアプリとして使う
 
@@ -17,18 +19,18 @@ viewer/     React ViewerとTauri macOSアプリ
 ```bash
 pnpm install
 pnpm tauri:build
-pnpm --filter extension build
+pnpm --filter @local-transcriber/extension build
 ```
 
 生成物は次の場所です。
 
 ```text
-viewer/src-tauri/target/release/bundle/macos/Local Tab Transcriber.app
-extension/dist
+target/release/bundle/macos/Local Tab Transcriber.app
+apps/extension/dist
 ```
 
 1. `.app`を起動します。Rust APIはTauriプロセス内で`127.0.0.1:8765`に起動します。
-2. `chrome://extensions`でデベロッパーモードを有効にし、`extension/dist`を「パッケージ化されていない拡張機能」として読み込みます。
+2. `chrome://extensions`でデベロッパーモードを有効にし、`apps/extension/dist`を「パッケージ化されていない拡張機能」として読み込みます。
 3. アプリの「モデル」でWhisper smallとSilero VADをダウンロードします。どちらもTokenや利用条件への同意は不要です。
 4. 必要なら「設定」で認識言語、句読点、文、段落の閾値を調整します。
 5. Chromeの対象タブで拡張ボタンを押して録音を開始します。停止も同じポップアップから行います。
@@ -72,7 +74,7 @@ pnpm dev
 Rust APIだけを起動する場合:
 
 ```bash
-cargo run --manifest-path server/Cargo.toml
+cargo run -p local-transcriber-server
 ```
 
 ## 主なコマンド
@@ -83,5 +85,5 @@ pnpm test
 pnpm check
 pnpm tauri:dev
 pnpm tauri:build
-cargo test --manifest-path server/Cargo.toml
+cargo test --workspace
 ```

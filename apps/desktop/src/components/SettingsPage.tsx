@@ -2,9 +2,17 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { AppSettings } from "../types";
 
-export function SettingsPage({ onError }: { onError: (message: string) => void }) {
+export function SettingsPage({
+  onError,
+  onDataDeleted
+}: {
+  onError: (message: string) => void;
+  onDataDeleted: () => Promise<void>;
+}) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
 
   useEffect(() => {
     void api
@@ -70,7 +78,6 @@ export function SettingsPage({ onError }: { onError: (message: string) => void }
               <option value="auto">自動判定</option>
             </select>
           </label>
-          <p className="setting-note">話者分析は現在無効です。</p>
         </fieldset>
         <details>
           <summary>文章整形の詳細設定</summary>
@@ -107,6 +114,47 @@ export function SettingsPage({ onError }: { onError: (message: string) => void }
           {saved && <span role="status">保存しました</span>}
         </div>
       </form>
+      <section className="data-deletion" aria-labelledby="data-deletion-title">
+        <div>
+          <h3 id="data-deletion-title">データの削除</h3>
+          <p>
+            録音、文字起こし、設定、ダウンロード済みモデルをこのMacから削除します。
+            この操作は元に戻せません。
+          </p>
+        </div>
+        <div className="data-deletion-actions">
+          <button
+            type="button"
+            className="button danger"
+            disabled={deleting}
+            onClick={async () => {
+              if (
+                !confirm(
+                  "すべての録音、文字起こし、設定、ダウンロード済みモデルを削除しますか？\n\nこの操作は元に戻せません。"
+                )
+              ) {
+                return;
+              }
+              setDeleting(true);
+              setDeleted(false);
+              try {
+                await api.deleteAllData();
+                setSettings(await api.settings());
+                setSaved(false);
+                setDeleted(true);
+                await onDataDeleted();
+              } catch (reason) {
+                onError(reason instanceof Error ? reason.message : String(reason));
+              } finally {
+                setDeleting(false);
+              }
+            }}
+          >
+            {deleting ? "削除しています…" : "すべてのデータを削除"}
+          </button>
+          {deleted && <span role="status">データを削除しました</span>}
+        </div>
+      </section>
     </section>
   );
 }

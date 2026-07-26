@@ -4,10 +4,9 @@ dist/
 .vite/
 coverage/
 .pnpm-store/
-server/.data/
-server/.models/
-server/target/
-extension/.output/
-viewer/src-tauri/binaries/local-transcriber-server-*
-viewer/src-tauri/resources/server/
-viewer/src-tauri/target/
+crates/transcriber-server/.data/
+crates/transcriber-server/.models/
+apps/extension/.output/
+apps/desktop/src-tauri/binaries/local-transcriber-server-*
+apps/desktop/src-tauri/resources/server/
+target/

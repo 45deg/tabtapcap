@@ -25,7 +25,7 @@ export function ModelsPage({ onError }: { onError: (message: string) => void }) 
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const next = await api.models();
+    const next = (await api.models()).filter((model) => model.id !== "pyannote-community-1");
     setModels(next);
     const activeJobs = next.filter((model) => model.job_id).map(async (model) => {
       const job = await api.modelJob(model.job_id!);

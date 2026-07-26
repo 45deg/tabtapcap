@@ -656,6 +656,43 @@ progress {
   font-size: 13px;
 }
 
+.data-deletion {
+  margin-top: 36px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid #e1e1e5;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.data-deletion h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.data-deletion p {
+  max-width: 580px;
+  margin: 7px 0 0;
+  color: #6e6e73;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.data-deletion-actions {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.data-deletion-actions span {
+  color: #248a3d;
+  font-size: 13px;
+}
+
 .player-bar {
   position: fixed;
   right: 0;
@@ -695,6 +732,15 @@ progress {
 @media (max-width: 760px) {
   .app-shell {
     display: block;
+  }
+
+  .data-deletion {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .data-deletion-actions {
+    justify-items: stretch;
   }
 
   .session-list {

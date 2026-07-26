@@ -12,7 +12,7 @@ importers:
         specifier: ^9.2.1
         version: 9.2.4
 
-  extension:
+  apps/extension:
     dependencies:
       '@crxjs/vite-plugin':
         specifier: ^2.4.0
@@ -34,7 +34,7 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@24.13.3)(jsdom@26.1.0)
 
-  viewer:
+  apps/desktop:
     dependencies:
       '@tauri-apps/api':
         specifier: ^2.0.0

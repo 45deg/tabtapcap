@@ -154,6 +154,7 @@ fn router(state: Arc<ServerState>) -> Router {
     Router::new()
         .route("/api/v1/health", get(health))
         .route("/api/v1/settings", get(get_settings).patch(update_settings))
+        .route("/api/v1/data", axum::routing::delete(delete_all_data))
         .route("/api/v1/models", get(list_models))
         .route("/api/v1/models/{model_id}/download", post(download_model))
         .route("/api/v1/model-jobs/{job_id}", get(model_job))
@@ -234,6 +235,50 @@ async fn update_settings(
     save_settings(&state.config_path, &settings)?;
     *state.settings.write().await = settings.clone();
     Ok(Json(settings))
+}
+
+async fn delete_all_data(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiError> {
+    require_local_control(&headers)?;
+    if state.active.lock().await.is_some() {
+        return Err(ApiError::conflict("録音中はデータを削除できません。"));
+    }
+    if state.database.list_sessions()?.iter().any(|session| {
+        matches!(
+            session.state.as_str(),
+            "finalizing" | "transcribing" | "diarizing"
+        )
+    }) {
+        return Err(ApiError::conflict(
+            "文字起こしの処理中はデータを削除できません。",
+        ));
+    }
+    if state.models.has_active_downloads() {
+        return Err(ApiError::conflict(
+            "モデルのダウンロード中はデータを削除できません。",
+        ));
+    }
+
+    state.database.clear_all()?;
+    for directory in [
+        state.data_dir.join("sessions"),
+        state.data_dir.join("cache"),
+        state.data_dir.join("logs"),
+    ] {
+        if directory.is_dir() {
+            tokio::fs::remove_dir_all(directory).await?;
+        }
+    }
+    tokio::fs::create_dir_all(state.data_dir.join("sessions")).await?;
+    if state.config_path.is_file() {
+        tokio::fs::remove_file(&state.config_path).await?;
+    }
+    state.models.clear().await?;
+    state.transcriber.reset();
+    *state.settings.write().await = AppSettings::default();
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn list_models(State(state): State<Arc<ServerState>>) -> Json<Vec<crate::types::ModelInfo>> {

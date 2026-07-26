@@ -31,6 +31,10 @@ impl Transcriber {
         self.vad_path.is_file()
     }
 
+    pub fn reset(&self) {
+        *self.context.lock().expect("whisper context mutex poisoned") = None;
+    }
+
     pub fn transcribe(&self, audio: &[f32], language: &str) -> Result<Vec<RecognizedWord>> {
         if !self.model_ready() {
             bail!("Whisperモデルが未導入です。モデル画面からダウンロードしてください。");

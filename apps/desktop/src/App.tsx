@@ -149,7 +149,16 @@ export default function App() {
         {view === "models" ? (
           <ModelsPage onError={setError} />
         ) : view === "settings" ? (
-          <SettingsPage onError={setError} />
+          <SettingsPage
+            onError={setError}
+            onDataDeleted={async () => {
+              setSelectedId(null);
+              setSession(null);
+              setDraft("");
+              history.replaceState(null, "", location.pathname);
+              await Promise.all([refreshList(), api.health().then(setHealth)]);
+            }}
+          />
         ) : !session ? (
           <div className="welcome">
             <h2>{connecting ? "ローカルサーバーを起動しています" : "録音を選択してください"}</h2>

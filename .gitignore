@@ -1,0 +1,16 @@
+.DS_Store
+.python-version.local
+.venv/
+node_modules/
+dist/
+.vite/
+coverage/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.pnpm-store/
+*.pyc
+server/.data/
+server/.models/
+server/htmlcov/
+extension/.output/

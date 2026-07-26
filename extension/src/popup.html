@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Local Tab Transcriber</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main>
+      <div class="title-row">
+        <h1>文字起こし</h1>
+        <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+      </div>
+      <p id="status" role="status">サーバーを確認しています…</p>
+      <p id="detail" class="detail"></p>
+      <label class="option">
+        <input id="diarization" type="checkbox" aria-describedby="diarization-hint" />
+        <span>
+          <strong>話者を識別する</strong>
+          <small id="diarization-hint">モデルを確認しています…</small>
+        </span>
+      </label>
+      <button id="primary" type="button" disabled>開始</button>
+      <button id="viewer" class="secondary" type="button">Viewerを開く</button>
+    </main>
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

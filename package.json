@@ -1,0 +1,15 @@
+{
+  "name": "local-tab-transcriber",
+  "private": true,
+  "packageManager": "pnpm@11.1.1",
+  "scripts": {
+    "dev": "concurrently -k -n server,viewer,extension -c blue,green,magenta \"pnpm dev:server\" \"pnpm --filter viewer dev\" \"pnpm --filter extension dev\"",
+    "dev:server": "uv run --project server --python 3.14 local-transcriber serve --reload",
+    "build": "pnpm --filter viewer build && pnpm --filter extension build",
+    "test": "pnpm -r test && uv run --project server --python 3.14 pytest",
+    "check": "pnpm -r check && uv run --project server --python 3.14 ruff check . && uv run --project server --python 3.14 pytest"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

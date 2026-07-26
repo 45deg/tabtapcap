@@ -4,7 +4,12 @@ const statusElement = document.querySelector<HTMLParagraphElement>("#status")!;
 const detailElement = document.querySelector<HTMLParagraphElement>("#detail")!;
 const dotElement = document.querySelector<HTMLSpanElement>("#status-dot")!;
 const primaryButton = document.querySelector<HTMLButtonElement>("#primary")!;
-const viewerButton = document.querySelector<HTMLButtonElement>("#viewer")!;
+const recordingPanel = document.querySelector<HTMLElement>("#recording-panel")!;
+const elapsedElement = document.querySelector<HTMLTimeElement>("#elapsed")!;
+const meterBars = Array.from(
+  document.querySelectorAll<HTMLSpanElement>("#recording-meter span")
+);
+let levelHistory = Array.from({ length: meterBars.length }, () => 0);
 
 let state: RecordingState = { status: "idle" };
 let serverReady = false;
@@ -15,6 +20,7 @@ function render(): void {
   dotElement.className = "status-dot";
   primaryButton.classList.remove("stop");
   primaryButton.disabled = false;
+  recordingPanel.hidden = true;
   if (state.status === "recording" || state.status === "reconnecting") {
     dotElement.classList.add("recording");
     statusElement.textContent =
@@ -22,7 +28,10 @@ function render(): void {
     const elapsed = Math.max(0, Date.now() - state.startedAt);
     const minutes = Math.floor(elapsed / 60_000);
     const seconds = Math.floor((elapsed % 60_000) / 1_000);
-    detailElement.textContent = `${state.tabTitle} · ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    detailElement.textContent = state.tabTitle;
+    recordingPanel.hidden = false;
+    elapsedElement.dateTime = `PT${Math.floor(elapsed / 1_000)}S`;
+    elapsedElement.textContent = `${minutes}:${String(seconds).padStart(2, "0")}`;
     primaryButton.textContent = "録音を停止";
     primaryButton.classList.add("stop");
     if (timer === null) timer = window.setInterval(render, 1_000);
@@ -30,6 +39,7 @@ function render(): void {
   }
   if (timer !== null) window.clearInterval(timer);
   timer = null;
+  resetMeter();
   if (state.status === "starting" || state.status === "stopping") {
     statusElement.textContent = state.status === "starting" ? "開始しています…" : "停止しています…";
     detailElement.textContent = "";
@@ -52,6 +62,26 @@ function render(): void {
   }
   primaryButton.textContent = "開始";
   primaryButton.disabled = !serverReady;
+}
+
+function renderMeter(): void {
+  meterBars.forEach((bar, index) => {
+    const level = levelHistory[index] ?? 0;
+    bar.style.height = `${8 + level * 92}%`;
+  });
+}
+
+function appendLevel(level: number): void {
+  levelHistory = [
+    ...levelHistory.slice(1),
+    Math.min(1, Math.max(0, level))
+  ];
+  renderMeter();
+}
+
+function resetMeter(): void {
+  levelHistory = levelHistory.map(() => 0);
+  renderMeter();
 }
 
 async function send<T>(message: BackgroundMessage): Promise<T> {
@@ -99,10 +129,14 @@ primaryButton.addEventListener("click", async () => {
   render();
 });
 
-viewerButton.addEventListener("click", () => {
-  const sessionId =
-    state.status === "recording" || state.status === "reconnecting" ? state.sessionId : undefined;
-  void send({ type: "OPEN_VIEWER", sessionId });
+chrome.runtime.onMessage.addListener((message: BackgroundMessage) => {
+  if (
+    message.type === "AUDIO_LEVEL_UPDATE" &&
+    (state.status === "recording" || state.status === "reconnecting") &&
+    message.sessionId === state.sessionId
+  ) {
+    appendLevel(message.level);
+  }
 });
 
 void initialize();

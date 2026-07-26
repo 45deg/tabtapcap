@@ -10,6 +10,7 @@ import type {
 const runningInTauri =
   location.protocol === "tauri:" || location.hostname === "tauri.localhost";
 export const SERVER_ORIGIN = runningInTauri ? "http://127.0.0.1:8765" : "";
+export type ExportFormat = "txt" | "vtt" | "json";
 
 async function connectionError(path: string, reason: unknown): Promise<Error> {
   const browserMessage = reason instanceof Error ? reason.message : String(reason);
@@ -46,7 +47,7 @@ export function serverWebSocketUrl(path: string): string {
   return `${scheme}://${location.host}${path}`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchResponse(path: string, init?: RequestInit): Promise<Response> {
   let response: Response;
   try {
     response = await fetch(serverUrl(path), {
@@ -64,8 +65,51 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await response.json().catch(() => ({ detail: response.statusText }));
     throw new Error(body.detail ?? "サーバーとの通信に失敗しました。");
   }
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetchResponse(path, init);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+function safeExportName(title: string, format: ExportFormat): string {
+  const stem = title
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/^\.+/, "")
+    .trim()
+    .slice(0, 80);
+  return `${stem || "文字起こし"}.${format}`;
+}
+
+export async function saveExportFile(
+  title: string,
+  format: ExportFormat,
+  contents: string
+): Promise<string> {
+  const fileName = safeExportName(title, format);
+  if (runningInTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<string>("save_export", { fileName, contents });
+  }
+
+  const url = URL.createObjectURL(
+    new Blob([contents], {
+      type:
+        format === "json"
+          ? "application/json;charset=utf-8"
+          : format === "vtt"
+            ? "text/vtt;charset=utf-8"
+            : "text/plain;charset=utf-8"
+    })
+  );
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  return fileName;
 }
 
 export const api = {
@@ -117,6 +161,10 @@ export const api = {
         expected_revision: session.revision
       })
     }),
+  exportSession: async (id: string, format: ExportFormat) =>
+    (
+      await fetchResponse(`/api/v1/sessions/${id}/export?format=${format}`)
+    ).text(),
   reprocess: (id: string) =>
     request<{ status: string }>(`/api/v1/sessions/${id}/reprocess`, { method: "POST" }),
   deleteSession: (id: string) =>

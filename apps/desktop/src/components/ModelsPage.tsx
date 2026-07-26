@@ -8,6 +8,7 @@ const phaseLabels: Record<string, string> = {
   resolving: "ファイルを確認しています",
   downloading: "ダウンロードしています",
   verifying: "検証しています",
+  extracting: "展開しています",
   completed: "導入済み",
   cancelled: "キャンセルしました",
   interrupted: "中断されました",

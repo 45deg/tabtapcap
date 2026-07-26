@@ -46,11 +46,17 @@ select:focus-visible {
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow: auto;
-  padding: 28px 16px;
+  padding: 28px 16px 16px;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid #d8d8dc;
   background: rgba(242, 242, 247, 0.88);
   backdrop-filter: blur(20px);
+}
+
+.session-list-content {
+  min-height: 0;
+  overflow: auto;
 }
 
 .sidebar-heading {
@@ -58,33 +64,6 @@ select:focus-visible {
   align-items: baseline;
   justify-content: space-between;
   padding: 0 10px 16px;
-}
-
-.app-navigation {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  margin-bottom: 24px;
-  padding: 4px;
-  border-radius: 10px;
-  background: #e5e5ea;
-}
-
-.app-navigation button {
-  min-height: 32px;
-  padding: 5px;
-  border: 0;
-  border-radius: 7px;
-  color: #55555a;
-  background: transparent;
-  cursor: pointer;
-}
-
-.app-navigation button.selected {
-  color: #1d1d1f;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  font-weight: 600;
 }
 
 .sidebar-heading h1 {
@@ -136,6 +115,47 @@ select:focus-visible {
 .session-item > span {
   color: #6e6e73;
   font-size: 12px;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #dddde1;
+}
+
+.settings-button {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 10px;
+  color: #55555a;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-button:hover,
+.settings-button.selected {
+  color: #1d1d1f;
+  background: #fff;
+}
+
+.settings-button.selected {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.07);
+  font-weight: 600;
+}
+
+.settings-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
 }
 
 .state {
@@ -220,6 +240,71 @@ select:focus-visible {
   margin-top: 8px;
 }
 
+.recording-status {
+  max-width: 920px;
+  min-height: 86px;
+  margin: 0 auto 20px;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(180px, 1.4fr) auto;
+  align-items: center;
+  gap: 24px;
+  border: 1px solid #ead1d1;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.recording-status-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.recording-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #a4261d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #d70015;
+}
+
+.recording-status-copy strong {
+  font-size: 15px;
+}
+
+.recording-meter {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.recording-meter span {
+  width: 3px;
+  height: 8%;
+  border-radius: 999px;
+  background: #d70015;
+  transition: height 160ms ease-out;
+}
+
+.recording-status time {
+  min-width: 72px;
+  color: #8f1d14;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: right;
+}
+
 progress {
   width: 140px;
   accent-color: #0071e3;
@@ -261,7 +346,9 @@ progress {
 .notice,
 .error-card,
 .live-draft,
-.error-banner {
+.error-banner,
+.success-banner,
+.delete-confirmation {
   max-width: 920px;
   margin: 0 auto 20px;
   padding: 14px 16px;
@@ -283,6 +370,35 @@ progress {
 .error-banner {
   color: #8f1d14;
   background: #fff0ef;
+}
+
+.success-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: #196c2e;
+  background: #edfaef;
+}
+
+.delete-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid #e8b7b2;
+  color: #5f1711;
+  background: #fff8f7;
+}
+
+.delete-confirmation p {
+  margin: 5px 0 0;
+  color: #6e3a35;
+}
+
+.delete-confirmation-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
 }
 
 .error-card {
@@ -325,11 +441,22 @@ progress {
   overflow-wrap: anywhere;
 }
 
-.error-banner button {
+.error-banner > button,
+.success-banner > button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  flex: none;
+  place-items: center;
   border: 0;
   background: transparent;
   color: inherit;
-  font-size: 20px;
+}
+
+.error-banner > button svg,
+.success-banner > button svg {
+  width: 18px;
+  height: 18px;
 }
 
 .live-draft span {
@@ -452,6 +579,38 @@ progress {
 .management-page {
   max-width: 920px;
   margin: 0 auto;
+}
+
+.management-view {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.management-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 32px;
+  padding: 4px;
+  border-radius: 11px;
+  background: #e5e5ea;
+}
+
+.management-tabs button {
+  min-height: 36px;
+  flex: 1;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 8px;
+  color: #55555a;
+  background: transparent;
+  cursor: pointer;
+}
+
+.management-tabs button.selected {
+  color: #1d1d1f;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  font-weight: 600;
 }
 
 .management-header {
@@ -752,6 +911,14 @@ progress {
     border-bottom: 1px solid #d8d8dc;
   }
 
+  .session-list-content {
+    overflow: visible;
+  }
+
+  .sidebar-footer {
+    margin-top: 12px;
+  }
+
   .workspace {
     padding: 28px 16px 105px;
   }
@@ -767,6 +934,24 @@ progress {
   .header-actions {
     justify-content: flex-start;
     margin-top: 18px;
+  }
+
+  .delete-confirmation {
+    display: block;
+  }
+
+  .delete-confirmation-actions {
+    margin-top: 14px;
+  }
+
+  .recording-status {
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+  }
+
+  .recording-status .recording-meter {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 
   .player-bar {
@@ -788,4 +973,5 @@ progress {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+
 }

@@ -4,7 +4,7 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    this.chunkSamples = Math.max(1, Math.round(sampleRate * 0.5));
+    this.chunkSamples = Math.max(1, Math.round(sampleRate * 0.1));
   }
 
   process(inputs) {

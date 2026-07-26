@@ -31,8 +31,8 @@ apps/extension/dist
 
 1. `.app`を起動します。Rust APIはTauriプロセス内で`127.0.0.1:8765`に起動します。
 2. `chrome://extensions`でデベロッパーモードを有効にし、`apps/extension/dist`を「パッケージ化されていない拡張機能」として読み込みます。
-3. アプリの「モデル」でWhisper smallとSilero VADをダウンロードします。どちらもTokenや利用条件への同意は不要です。
-4. 必要なら「設定」で認識言語、句読点、文、段落の閾値を調整します。
+3. アプリの「モデル」で使用するWhisperモデルとSilero VAD、またはNVIDIA Parakeet 0.6B Japaneseをダウンロードします。Tokenは不要です。
+4. 「設定」で認識モデルを選び、必要なら認識言語、句読点、文、段落の閾値を調整します。
 5. Chromeの対象タブで拡張ボタンを押して録音を開始します。停止も同じポップアップから行います。
 
 アプリはローカル開発用のad-hoc署名で、notarizationは行っていません。データ、設定、モデルは通常、次のディレクトリへ保存されます。
@@ -47,15 +47,41 @@ Rust APIの起動エラーは次のログへ保存されます。接続に10秒�
 ~/Library/Application Support/app.local-transcriber.desktop/logs/app.log
 ```
 
-## 処理
+## 処理フロー
+
+### 録音中
+
+Chrome拡張がタブ音声を取得し、AudioWorkletで100ms単位のモノラルPCM16へ変換します。PCM本体は録音用WebSocketを通じてRust APIへ送り、Reactには転送しません。
+
+```text
+Chromeの対象タブ
+  ↓ chrome.tabCapture
+Offscreen Document
+  ↓ AudioContext + AudioWorklet
+100ms単位のmono PCM16
+  ├─ RMS音量を算出 → Chrome runtime message → ポップアップの音量履歴
+  └─ /ws/v1/capture → Rust API
+       ├─ capture.pcm.partialへ追記
+       ├─ シーケンス番号をACK
+       ├─ 同じPCMからRMS音量を算出
+       └─ /ws/v1/events → デスクトップReactの音量履歴
+```
+
+Chromeとデスクトップの表示は、PCM区間の波形そのものではなく、PCMから求めた音量を右端へ追加し、履歴を左へ流す形式です。Reactへ渡すのは音量値とシーケンス番号だけなので、WebViewへPCM全体を複製しません。
+
+録音WebSocketが切断された場合、拡張は未ACKのPCMフレームを保持します。再接続時にRust APIから受け取った次のシーケンス番号以降を再送し、一定時間復旧できない場合は録音を安全に停止します。
+
+### 録音停止後
 
 録音停止後は、すべて同じRustプロセス内で次の順に処理します。
 
 ```text
-PCM16 → 16kHz mono WAV → Silero VAD → whisper.cpp → 句読点・文区切り・段落生成
+PCM16 → 16kHz mono WAV → whisper.cpp + Silero VAD / sherpa-onnx + Parakeet → 句読点・文区切り・段落生成
 ```
 
-認識には`whisper-rs`のMetalビルドを使います。文章整形は無音時間と文字数に基づく決定的な処理で、元の発言を言い換えません。結果はSQLiteを正本として、TXT、VTT、JSONへ出力できます。
+Whisperは`whisper-rs`のMetalビルドを使用し、tiny、base、small、medium、large-v3、large-v3 turboから選べます。Parakeetは公式sherpa-onnx変換版の日本語CTC int8モデルをCPUで実行します。推論時は選択した1モデルだけをメモリへ読み込みます。
+
+処理状態は`capturing`、`finalizing`、`transcribing`、`formatting`、`ready`の順に更新され、イベントWebSocketからデスクトップへ通知されます。文章整形は無音時間と文字数に基づく決定的な処理で、元の発言を言い換えません。結果はSQLiteを正本として、TXT、VTT、JSONへ出力できます。Parakeetモデルと推論ランタイムのライセンス情報は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
 
 ## 開発
 

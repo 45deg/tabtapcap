@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import type { AppSettings } from "../types";
+import type { AppSettings, ModelInfo } from "../types";
 
 export function SettingsPage({
   onError,
@@ -10,14 +10,17 @@ export function SettingsPage({
   onDataDeleted: () => Promise<void>;
 }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
 
   useEffect(() => {
-    void api
-      .settings()
-      .then(setSettings)
+    void Promise.all([api.settings(), api.models()])
+      .then(([nextSettings, nextModels]) => {
+        setSettings(nextSettings);
+        setModels(nextModels.filter((model) => model.engine !== "utility"));
+      })
       .catch((reason: Error) => onError(reason.message));
   }, [onError]);
 
@@ -59,10 +62,15 @@ export function SettingsPage({
           <label className="setting-row">
             <span>
               言語
-              <small>日本語固定、または音声から自動判定します。</small>
+              <small>
+                {settings.transcription.model_id.startsWith("parakeet-")
+                  ? "Parakeet Japaneseは日本語固定です。"
+                  : "日本語固定、または音声から自動判定します。"}
+              </small>
             </span>
             <select
               value={settings.transcription.language}
+              disabled={settings.transcription.model_id.startsWith("parakeet-")}
               onChange={(event) => {
                 setSaved(false);
                 setSettings({
@@ -76,6 +84,37 @@ export function SettingsPage({
             >
               <option value="ja">日本語</option>
               <option value="auto">自動判定</option>
+            </select>
+          </label>
+          <label className="setting-row">
+            <span>
+              認識モデル
+              <small>録音開始時に選んだモデルで処理します。</small>
+            </span>
+            <select
+              value={settings.transcription.model_id}
+              onChange={(event) => {
+                setSaved(false);
+                const modelId =
+                  event.target.value as AppSettings["transcription"]["model_id"];
+                setSettings({
+                  ...settings,
+                  transcription: {
+                    ...settings.transcription,
+                    model_id: modelId,
+                    language: modelId.startsWith("parakeet-")
+                      ? "ja"
+                      : settings.transcription.language
+                  }
+                });
+              }}
+            >
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                  {model.installed ? "" : "（未導入）"}
+                </option>
+              ))}
             </select>
           </label>
         </fieldset>

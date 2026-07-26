@@ -1,4 +1,4 @@
-import { encodeAudioFrame, type RecordingState } from "./protocol";
+import { encodeAudioFrame, pcmVolumeLevel, type RecordingState } from "./protocol";
 
 const SERVER_WS = "ws://127.0.0.1:8765/ws/v1/capture";
 const MAX_PENDING_BYTES = 12 * 1024 * 1024;
@@ -166,6 +166,11 @@ async function startCapture(message: {
 
   worklet.port.onmessage = (event: MessageEvent<Int16Array>) => {
     const pcm = event.data;
+    void chrome.runtime.sendMessage({
+      type: "AUDIO_LEVEL_UPDATE",
+      sessionId: activeSessionId!,
+      level: pcmVolumeLevel(pcm)
+    });
     const frame = encodeAudioFrame({
       sequence,
       startSample,

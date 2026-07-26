@@ -33,32 +33,53 @@ p {
 .detail {
   min-height: 20px;
   color: #6e6e73;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.option {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
+.recording-panel {
+  min-height: 62px;
   margin: 0 0 14px;
-  font-size: 13px;
-  line-height: 1.35;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid #ead1d1;
+  border-radius: 12px;
+  background: #fff;
 }
 
-.option input {
-  width: 16px;
-  height: 16px;
-  margin: 1px 0 0;
-  accent-color: #0071e3;
+.recording-panel[hidden] {
+  display: none;
 }
 
-.option span {
-  display: grid;
-  gap: 2px;
+.recording-panel time {
+  flex: none;
+  min-width: 52px;
+  color: #8f1d14;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: right;
 }
 
-.option small {
-  color: #6e6e73;
-  font-size: 11px;
+.recording-meter {
+  height: 32px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.recording-meter span {
+  width: 4px;
+  height: 8%;
+  border-radius: 999px;
+  background: #d70015;
+  transition: height 160ms ease-out;
 }
 
 .status-dot {
@@ -106,8 +127,8 @@ button.stop {
   background: #c43131;
 }
 
-button.secondary {
-  margin-top: 8px;
-  background: transparent;
-  color: #0066cc;
+@media (prefers-reduced-motion: reduce) {
+  .recording-meter span {
+    transition: none;
+  }
 }

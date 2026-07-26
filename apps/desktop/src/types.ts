@@ -49,7 +49,14 @@ export interface Health {
 
 export interface TranscriptionSettings {
   language: "ja" | "auto";
-  whisper_model: "small";
+  model_id:
+    | "whisper-tiny"
+    | "whisper-base"
+    | "whisper-small"
+    | "whisper-medium"
+    | "whisper-large-v3"
+    | "whisper-large-v3-turbo"
+    | "parakeet-tdt-0.6b-ja";
   diarization_default: boolean;
 }
 
@@ -68,6 +75,7 @@ export interface AppSettings {
 export interface ModelInfo {
   id: string;
   name: string;
+  engine: "whisper" | "parakeet" | "utility";
   repo_id: string;
   revision: string;
   requires_token: boolean;
@@ -100,6 +108,12 @@ export type SessionEvent =
       startMs: number;
       endMs: number;
       text: string;
+    }
+  | {
+      type: "audio_level";
+      sessionId: string;
+      sequence: number;
+      level: number;
     }
   | {
       type: "session_state";

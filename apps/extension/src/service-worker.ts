@@ -1,7 +1,6 @@
 import type { BackgroundMessage, RecordingState } from "./protocol";
 
 const OFFSCREEN_URL = "src/offscreen.html";
-const VIEWER_URL = import.meta.env.VITE_VIEWER_URL ?? "http://127.0.0.1:8765";
 let state: RecordingState = { status: "idle" };
 let creatingOffscreen: Promise<void> | null = null;
 const stateReady = restoreState();
@@ -99,9 +98,7 @@ chrome.runtime.onMessage.addListener(
         sendResponse({ ok: true });
         return;
       }
-      if (message.type === "OPEN_VIEWER") {
-        const suffix = message.sessionId ? `/?session=${message.sessionId}` : "/";
-        await chrome.tabs.create({ url: `${VIEWER_URL}${suffix}` });
+      if (message.type === "AUDIO_LEVEL_UPDATE") {
         sendResponse({ ok: true });
       }
     })().catch(async (error: unknown) => {

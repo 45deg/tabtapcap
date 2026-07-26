@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, serverUrl, serverWebSocketUrl } from "./api";
+import { X } from "lucide-react";
+import { api, saveExportFile, serverWebSocketUrl } from "./api";
 import { Player } from "./components/Player";
 import { ModelsPage } from "./components/ModelsPage";
+import { RecordingStatus } from "./components/RecordingStatus";
 import { SessionList } from "./components/SessionList";
 import { SettingsPage } from "./components/SettingsPage";
 import { Transcript } from "./components/Transcript";
@@ -17,9 +19,13 @@ export default function App() {
   );
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [draft, setDraft] = useState("");
+  const [audioLevel, setAudioLevel] = useState({ sequence: 0, level: 0 });
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [seekRequest, setSeekRequest] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const connectionStartedAt = useRef(Date.now());
 
@@ -75,6 +81,9 @@ export default function App() {
     socket.onmessage = (message) => {
       const event = JSON.parse(message.data) as SessionEvent;
       if (event.type === "draft") setDraft(event.text);
+      if (event.type === "audio_level") {
+        setAudioLevel({ sequence: event.sequence, level: event.level });
+      }
       if (event.type === "session_state") {
         setSession((current) =>
           current
@@ -105,6 +114,26 @@ export default function App() {
     [currentTimeMs, session]
   );
 
+  useEffect(() => {
+    setConfirmingDelete(false);
+    setActiveAction(null);
+    setAudioLevel({ sequence: 0, level: 0 });
+  }, [selectedId]);
+
+  async function runSessionAction(action: string, operation: () => Promise<void>): Promise<void> {
+    if (activeAction) return;
+    setActiveAction(action);
+    setError(null);
+    setFeedback(null);
+    try {
+      await operation();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
   async function runMutation(action: () => Promise<SessionDetail>): Promise<void> {
     try {
       const next = await action();
@@ -123,8 +152,9 @@ export default function App() {
         sessions={sessions}
         selectedId={selectedId}
         view={view}
-        onViewChange={setView}
+        onOpenSettings={() => setView("settings")}
         onSelect={(id) => {
+          setFeedback(null);
           setSelectedId(id);
           setView("recordings");
         }}
@@ -142,23 +172,55 @@ export default function App() {
               )}
             </div>
             <button type="button" onClick={() => setError(null)} aria-label="エラーを閉じる">
-              ×
+              <X aria-hidden="true" />
+            </button>
+          </div>
+        )}
+        {feedback && (
+          <div className="success-banner" role="status">
+            <span>{feedback}</span>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              aria-label="通知を閉じる"
+            >
+              <X aria-hidden="true" />
             </button>
           </div>
         )}
         {view === "models" ? (
-          <ModelsPage onError={setError} />
+          <section className="management-view">
+            <nav className="management-tabs" aria-label="管理画面">
+              <button type="button" className="selected" aria-current="page">
+                モデル
+              </button>
+              <button type="button" onClick={() => setView("settings")}>
+                設定
+              </button>
+            </nav>
+            <ModelsPage onError={setError} />
+          </section>
         ) : view === "settings" ? (
-          <SettingsPage
-            onError={setError}
-            onDataDeleted={async () => {
-              setSelectedId(null);
-              setSession(null);
-              setDraft("");
-              history.replaceState(null, "", location.pathname);
-              await Promise.all([refreshList(), api.health().then(setHealth)]);
-            }}
-          />
+          <section className="management-view">
+            <nav className="management-tabs" aria-label="管理画面">
+              <button type="button" onClick={() => setView("models")}>
+                モデル
+              </button>
+              <button type="button" className="selected" aria-current="page">
+                設定
+              </button>
+            </nav>
+            <SettingsPage
+              onError={setError}
+              onDataDeleted={async () => {
+                setSelectedId(null);
+                setSession(null);
+                setDraft("");
+                history.replaceState(null, "", location.pathname);
+                await Promise.all([refreshList(), api.health().then(setHealth)]);
+              }}
+            />
+          </section>
         ) : !session ? (
           <div className="welcome">
             <h2>{connecting ? "ローカルサーバーを起動しています" : "録音を選択してください"}</h2>
@@ -195,37 +257,94 @@ export default function App() {
               </div>
               <div className="header-actions">
                 {(["txt", "vtt", "json"] as const).map((format) => (
-                  <a
+                  <button
+                    type="button"
                     key={format}
                     className="button secondary"
-                    href={serverUrl(`/api/v1/sessions/${session.id}/export?format=${format}`)}
-                    download
+                    disabled={activeAction !== null}
+                    onClick={() =>
+                      void runSessionAction(`export-${format}`, async () => {
+                        const contents = await api.exportSession(session.id, format);
+                        const savedPath = await saveExportFile(session.title, format, contents);
+                        setFeedback(`${format.toUpperCase()}を保存しました: ${savedPath}`);
+                      })
+                    }
                   >
-                    {format.toUpperCase()}
-                  </a>
+                    {activeAction === `export-${format}` ? "保存中…" : format.toUpperCase()}
+                  </button>
                 ))}
                 <button
                   type="button"
                   className="button danger"
-                  onClick={async () => {
-                    if (!confirm(`「${session.title}」と録音音声を削除しますか？`)) return;
-                    await api.deleteSession(session.id);
-                    setSelectedId(null);
-                    setSession(null);
-                    await refreshList();
-                  }}
+                  disabled={activeAction !== null}
+                  onClick={() => setConfirmingDelete(true)}
                 >
                   削除
                 </button>
               </div>
             </header>
 
-            {health && !health.models.whisper && (
-              <div className="notice">
-                文字起こしモデルが未導入です。「モデル」画面からWhisperとVADを
-                ダウンロードしてください。
-              </div>
+            {session.state === "capturing" && (
+              <RecordingStatus
+                startedAt={session.created_at}
+                title={session.title}
+                level={audioLevel.level}
+                levelSequence={audioLevel.sequence}
+              />
             )}
+
+            {confirmingDelete && (
+              <section
+                className="delete-confirmation"
+                role="alertdialog"
+                aria-labelledby="delete-confirmation-title"
+                aria-describedby="delete-confirmation-description"
+              >
+                <div>
+                  <strong id="delete-confirmation-title">この録音を削除しますか？</strong>
+                  <p id="delete-confirmation-description">
+                    「{session.title}」の文字起こしと録音音声を削除します。この操作は元に戻せません。
+                  </p>
+                </div>
+                <div className="delete-confirmation-actions">
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={activeAction !== null}
+                    onClick={() => setConfirmingDelete(false)}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    className="button danger"
+                    disabled={activeAction !== null}
+                    onClick={() =>
+                      void runSessionAction("delete", async () => {
+                        await api.deleteSession(session.id);
+                        setConfirmingDelete(false);
+                        setSelectedId(null);
+                        setSession(null);
+                        await refreshList();
+                        setFeedback("録音を削除しました。");
+                      })
+                    }
+                  >
+                    {activeAction === "delete" ? "削除中…" : "削除する"}
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {health &&
+              (!health.models.transcription ||
+                (health.models.whisper && !health.models.vad)) && (
+                <div className="notice">
+                  {!health.models.transcription
+                    ? "選択した文字起こしモデルが未導入です。「モデル」画面からダウンロードしてください。"
+                    : "Whisperに必要なSilero VADが未導入です。「モデル」画面からダウンロードしてください。"}
+                </div>
+              )}
 
             {session.error_message && (
               <div className="error-card" role="alert">
@@ -233,12 +352,16 @@ export default function App() {
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={async () => {
-                    await api.reprocess(session.id);
-                    await refreshSession(session.id);
-                  }}
+                  disabled={activeAction !== null}
+                  onClick={() =>
+                    void runSessionAction("reprocess", async () => {
+                      await api.reprocess(session.id);
+                      await refreshSession(session.id);
+                      setFeedback("再処理を開始しました。");
+                    })
+                  }
                 >
-                  再処理
+                  {activeAction === "reprocess" ? "開始中…" : "再処理"}
                 </button>
               </div>
             )}

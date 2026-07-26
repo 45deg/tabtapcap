@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use local_transcriber_server::ServerConfig;
-use tauri::{Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 struct AppLogPath(PathBuf);
 
@@ -46,10 +46,65 @@ fn read_app_log(state: State<'_, AppLogPath>) -> String {
     }
 }
 
+fn available_export_path(downloads_dir: &Path, file_name: &str) -> Result<PathBuf, String> {
+    let requested = Path::new(file_name);
+    if requested.components().count() != 1 {
+        return Err("保存ファイル名が不正です。".into());
+    }
+    let extension = requested.extension().and_then(|value| value.to_str());
+    if !matches!(extension, Some("txt" | "vtt" | "json")) {
+        return Err("保存形式が不正です。".into());
+    }
+
+    let stem = requested
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "保存ファイル名が不正です。".to_string())?;
+    let candidate = downloads_dir.join(requested);
+    if !candidate.exists() {
+        return Ok(candidate);
+    }
+    for suffix in 2..=999 {
+        let candidate = downloads_dir.join(format!(
+            "{stem} ({suffix}).{}",
+            extension.expect("validated extension")
+        ));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err("同名の保存ファイルが多すぎます。".into())
+}
+
+#[tauri::command]
+fn save_export(app: AppHandle, file_name: String, contents: String) -> Result<String, String> {
+    let downloads_dir = app
+        .path()
+        .download_dir()
+        .map_err(|error| format!("ダウンロードフォルダを開けません: {error}"))?;
+    let path = available_export_path(&downloads_dir, &file_name)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|error| format!("書き出しファイルを作成できません: {error}"))?;
+    file.write_all(contents.as_bytes())
+        .map_err(|error| format!("書き出しファイルを保存できません: {error}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![read_app_log])
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
+        .invoke_handler(tauri::generate_handler![read_app_log, save_export])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let models_dir = data_dir.join("models");
@@ -80,4 +135,21 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("failed to run Local Tab Transcriber");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::available_export_path;
+    use std::path::Path;
+
+    #[test]
+    fn validates_export_file_names() {
+        let downloads = Path::new("/path/that/does/not/exist");
+        assert!(available_export_path(downloads, "../recording.txt").is_err());
+        assert!(available_export_path(downloads, "recording.exe").is_err());
+        assert_eq!(
+            available_export_path(downloads, "recording.txt").unwrap(),
+            downloads.join("recording.txt")
+        );
+    }
 }

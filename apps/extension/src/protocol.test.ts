@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AUDIO_HEADER_SIZE, encodeAudioFrame } from "./protocol";
+import { AUDIO_HEADER_SIZE, encodeAudioFrame, pcmVolumeLevel } from "./protocol";
 
 describe("encodeAudioFrame", () => {
   it("encodes the fixed binary header and PCM payload", () => {
@@ -17,5 +17,9 @@ describe("encodeAudioFrame", () => {
     expect(view.getBigUint64(12, true)).toBe(96_000n);
     expect(view.getUint32(20, true)).toBe(48_000);
   });
-});
 
+  it("derives a perceptual volume level from PCM samples", () => {
+    expect(pcmVolumeLevel(new Int16Array([0, 0]))).toBe(0);
+    expect(pcmVolumeLevel(new Int16Array([32767, -32768]))).toBeCloseTo(1);
+  });
+});

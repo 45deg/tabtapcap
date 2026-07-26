@@ -1,11 +1,15 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TranscriptionSettings {
     #[serde(default = "default_language")]
     pub language: String,
-    #[serde(default = "default_model")]
-    pub whisper_model: String,
+    #[serde(
+        default = "default_model",
+        alias = "whisper_model",
+        deserialize_with = "deserialize_model"
+    )]
+    pub model_id: String,
     #[serde(default)]
     pub diarization_default: bool,
 }
@@ -15,14 +19,27 @@ fn default_language() -> String {
 }
 
 fn default_model() -> String {
-    "small".into()
+    "whisper-small".into()
+}
+
+fn deserialize_model<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    Ok(match value.as_str() {
+        "tiny" | "base" | "small" | "medium" => format!("whisper-{value}"),
+        "large-v3" => "whisper-large-v3".into(),
+        "large-v3-turbo" | "turbo" => "whisper-large-v3-turbo".into(),
+        _ => value,
+    })
 }
 
 impl Default for TranscriptionSettings {
     fn default() -> Self {
         Self {
             language: default_language(),
-            whisper_model: default_model(),
+            model_id: default_model(),
             diarization_default: false,
         }
     }
@@ -77,8 +94,11 @@ impl AppSettings {
         if !matches!(self.transcription.language.as_str(), "ja" | "auto") {
             return Err("言語はjaまたはautoを指定してください。".into());
         }
-        if self.transcription.whisper_model != "small" {
-            return Err("現在利用できるWhisperモデルはsmallです。".into());
+        if !crate::model_manager::is_transcription_model(&self.transcription.model_id) {
+            return Err("利用できない文字起こしモデルです。".into());
+        }
+        if self.transcription.model_id.starts_with("parakeet-") {
+            self.transcription.language = "ja".into();
         }
         let f = &self.formatting;
         if !(200..=1_000).contains(&f.comma_pause_ms)
@@ -106,7 +126,9 @@ pub struct Health {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ModelStatus {
+    pub transcription: bool,
     pub whisper: bool,
+    pub parakeet: bool,
     pub vad: bool,
     pub diarization: bool,
 }
@@ -115,6 +137,7 @@ pub struct ModelStatus {
 pub struct ModelInfo {
     pub id: &'static str,
     pub name: &'static str,
+    pub engine: &'static str,
     pub repo_id: &'static str,
     pub revision: &'static str,
     pub requires_token: bool,
@@ -202,4 +225,32 @@ pub struct UtteranceDraft {
     pub text: String,
     pub paragraph_break_before: bool,
     pub confidence: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppSettings;
+
+    #[test]
+    fn migrates_legacy_whisper_model_setting() {
+        let settings: AppSettings =
+            serde_json::from_str(r#"{"transcription":{"language":"ja","whisper_model":"small"}}"#)
+                .expect("legacy settings should deserialize");
+
+        assert_eq!(settings.transcription.model_id, "whisper-small");
+    }
+
+    #[test]
+    fn fixes_parakeet_language_to_japanese() {
+        let mut settings: AppSettings = serde_json::from_str(
+            r#"{"transcription":{"language":"auto","model_id":"parakeet-tdt-0.6b-ja"}}"#,
+        )
+        .expect("settings should deserialize");
+
+        settings
+            .validate_and_disable_diarization()
+            .expect("settings should validate");
+
+        assert_eq!(settings.transcription.language, "ja");
+    }
 }

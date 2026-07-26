@@ -7,6 +7,7 @@ edition = "2024"
 anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
 bytes = "1"
+bzip2 = "0.6"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
 hound = "3.5"
@@ -14,6 +15,9 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 rusqlite = { version = "0.38", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sherpa-onnx = { version = "=1.13.4", default-features = false, features = ["static"] }
+sha2 = "0.10"
+tar = "0.4"
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "sync", "time"] }
 tower-http = { version = "0.6", features = ["cors"] }
 tracing = "0.1"

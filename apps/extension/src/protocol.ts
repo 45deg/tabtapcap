@@ -30,6 +30,17 @@ export function encodeAudioFrame(input: AudioFrameInput): ArrayBuffer {
   return buffer;
 }
 
+export function pcmVolumeLevel(pcm: Int16Array): number {
+  if (pcm.length === 0) return 0;
+  let sumSquares = 0;
+  for (const sample of pcm) {
+    const normalized = sample / 32768;
+    sumSquares += normalized * normalized;
+  }
+  const rms = Math.sqrt(sumSquares / pcm.length);
+  return Math.min(1, Math.sqrt(rms) * 1.5);
+}
+
 export type RecordingState =
   | { status: "idle" }
   | { status: "starting" }
@@ -52,5 +63,5 @@ export type BackgroundMessage =
       language: "ja" | "auto";
     }
   | { type: "STOP_CAPTURE" }
-  | { type: "OPEN_VIEWER"; sessionId?: string }
-  | { type: "CAPTURE_STATE"; state: RecordingState };
+  | { type: "CAPTURE_STATE"; state: RecordingState }
+  | { type: "AUDIO_LEVEL_UPDATE"; sessionId: string; level: number };

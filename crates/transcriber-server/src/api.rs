@@ -58,6 +58,13 @@ struct Capture {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 enum ServerEvent {
+    #[serde(rename = "audio_level")]
+    AudioLevel {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        sequence: u32,
+        level: f32,
+    },
     #[serde(rename = "session_state")]
     SessionState {
         #[serde(rename = "sessionId")]
@@ -205,13 +212,24 @@ async fn health(State(state): State<Arc<ServerState>>) -> Json<Health> {
         .await
         .as_ref()
         .map(|capture| capture.session_id.clone());
-    let whisper = state.transcriber.model_ready();
+    let settings = state.settings.read().await;
+    let model_id = &settings.transcription.model_id;
+    let transcription = state.transcriber.model_ready(model_id);
+    let whisper = model_id.starts_with("whisper-") && transcription;
+    let parakeet = model_id.starts_with("parakeet-") && transcription;
     let vad = state.transcriber.vad_ready();
+    let dependencies_ready = !Transcriber::vad_required(model_id) || vad;
     Json(Health {
-        status: if whisper && vad { "ok" } else { "degraded" },
+        status: if transcription && dependencies_ready {
+            "ok"
+        } else {
+            "degraded"
+        },
         version: env!("CARGO_PKG_VERSION"),
         models: ModelStatus {
+            transcription,
             whisper,
+            parakeet,
             vad,
             diarization: false,
         },
@@ -714,7 +732,26 @@ async fn receive_audio(state: &ServerState, bytes: &[u8]) -> Result<u32> {
         capture.last_sequence,
         capture.audio_gap,
     )?;
+    let _ = state.events.send(ServerEvent::AudioLevel {
+        session_id: capture.session_id.clone(),
+        sequence: frame.sequence,
+        level: audio_level(&frame.payload[byte_offset..]),
+    });
     Ok(frame.sequence)
+}
+
+fn audio_level(payload: &[u8]) -> f32 {
+    let mut sample_count = 0_u64;
+    let sum_squares = payload.chunks_exact(2).fold(0.0_f64, |sum, chunk| {
+        sample_count += 1;
+        let normalized = i16::from_le_bytes([chunk[0], chunk[1]]) as f64 / 32768.0;
+        sum + normalized * normalized
+    });
+    if sample_count == 0 {
+        return 0.0;
+    }
+    let rms = (sum_squares / sample_count as f64).sqrt();
+    (rms.sqrt() * 1.5).min(1.0) as f32
 }
 
 fn write_silence(file: &mut File, samples: u64) -> Result<()> {
@@ -803,16 +840,18 @@ async fn process_session(state: Arc<ServerState>, session_id: &str) -> Result<()
         None,
     );
     let language = state.database.language(session_id)?;
+    let settings = state.database.settings_snapshot(session_id)?;
+    let model_id = settings.transcription.model_id.clone();
     let transcriber = state.transcriber.clone();
     let words =
-        tokio::task::spawn_blocking(move || transcriber.transcribe(&audio, &language)).await??;
+        tokio::task::spawn_blocking(move || transcriber.transcribe(&audio, &language, &model_id))
+            .await??;
 
     let revision =
         state
             .database
             .update_state(session_id, "formatting", 0.82, None, None, false)?;
     publish_state(&state, session_id, "formatting", 0.82, revision, None, None);
-    let settings = state.database.settings_snapshot(session_id)?;
     let utterances = group_utterances(&words, &settings.formatting);
     state
         .database
@@ -864,7 +903,11 @@ async fn events_socket(socket: WebSocket, state: Arc<ServerState>, session_id: S
     let mut events = state.events.subscribe();
     while let Ok(event) = events.recv().await {
         let matches = match &event {
-            ServerEvent::SessionState {
+            ServerEvent::AudioLevel {
+                session_id: event_session,
+                ..
+            }
+            | ServerEvent::SessionState {
                 session_id: event_session,
                 ..
             } => event_session == &session_id,
@@ -939,5 +982,25 @@ trait SettingsExtension {
 impl SettingsExtension for AppSettings {
     fn diarization_default_off(&mut self) {
         self.transcription.diarization_default = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::audio_level;
+
+    #[test]
+    fn derives_perceptual_audio_level_from_pcm_s16le() {
+        let silence = [0_i16, 0]
+            .into_iter()
+            .flat_map(i16::to_le_bytes)
+            .collect::<Vec<_>>();
+        let full_scale = [i16::MAX, i16::MIN]
+            .into_iter()
+            .flat_map(i16::to_le_bytes)
+            .collect::<Vec<_>>();
+
+        assert_eq!(audio_level(&silence), 0.0);
+        assert!((audio_level(&full_scale) - 1.0).abs() < f32::EPSILON);
     }
 }

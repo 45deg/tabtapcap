@@ -85,5 +85,3 @@ pnpm tauri:dev
 pnpm tauri:build
 cargo test --manifest-path server/Cargo.toml
 ```
-
-`server/src/local_transcriber/`以下のPython実装は移行時の参照用で、現在の起動・ビルド経路からは使用されません。

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from .config import settings
+from .config import LocalConfig, settings
 from .database import SessionLocal
 from .events import event_broker
 from .models import (
@@ -192,7 +192,19 @@ async def process_session(session_id: str) -> None:
                 0.9 if record.diarization_enabled else 0.7,
             )
             await publish_state(record)
-            utterances = group_utterances(words)
+            snapshot = (
+                LocalConfig.model_validate_json(record.settings_snapshot)
+                if record.settings_snapshot
+                else settings.load_local_config()
+            )
+            formatting = snapshot.formatting
+            utterances = group_utterances(
+                words,
+                comma_gap_ms=formatting.comma_pause_ms,
+                sentence_gap_ms=formatting.sentence_pause_ms,
+                paragraph_gap_ms=formatting.paragraph_pause_ms,
+                max_paragraph_chars=formatting.max_paragraph_chars,
+            )
             _replace_transcript(db, record, words, utterances)
             record.state = SessionState.READY.value
             record.progress = 1.0

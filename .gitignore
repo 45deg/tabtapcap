@@ -12,5 +12,11 @@ __pycache__/
 *.pyc
 server/.data/
 server/.models/
+server/target/
 server/htmlcov/
 extension/.output/
+viewer/src-tauri/binaries/local-transcriber-server-*
+viewer/src-tauri/resources/server/
+viewer/src-tauri/target/
+server/build/
+server/dist/

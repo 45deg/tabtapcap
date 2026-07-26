@@ -5,25 +5,16 @@ const detailElement = document.querySelector<HTMLParagraphElement>("#detail")!;
 const dotElement = document.querySelector<HTMLSpanElement>("#status-dot")!;
 const primaryButton = document.querySelector<HTMLButtonElement>("#primary")!;
 const viewerButton = document.querySelector<HTMLButtonElement>("#viewer")!;
-const diarizationInput = document.querySelector<HTMLInputElement>("#diarization")!;
-const diarizationHint = document.querySelector<HTMLElement>("#diarization-hint")!;
 
 let state: RecordingState = { status: "idle" };
 let serverReady = false;
-let diarizationEnabled = false;
-let diarizationReady = false;
+let language: "ja" | "auto" = "ja";
 let timer: number | null = null;
 
 function render(): void {
   dotElement.className = "status-dot";
   primaryButton.classList.remove("stop");
   primaryButton.disabled = false;
-  diarizationInput.disabled =
-    !diarizationReady ||
-    state.status === "recording" ||
-    state.status === "reconnecting" ||
-    state.status === "starting" ||
-    state.status === "stopping";
   if (state.status === "recording" || state.status === "reconnecting") {
     dotElement.classList.add("recording");
     statusElement.textContent =
@@ -68,31 +59,25 @@ async function send<T>(message: BackgroundMessage): Promise<T> {
 }
 
 async function initialize(): Promise<void> {
-  const [nextState, stored] = await Promise.all([
-    send<RecordingState>({ type: "GET_STATE" }),
-    chrome.storage.local.get("diarizationEnabled")
-  ]);
-  state = nextState;
-  diarizationEnabled = stored.diarizationEnabled === true;
-  diarizationInput.checked = diarizationEnabled;
+  state = await send<RecordingState>({ type: "GET_STATE" });
   try {
-    const response = await fetch("http://127.0.0.1:8765/api/v1/health");
-    serverReady = response.ok;
-    if (response.ok) {
-      const health = (await response.json()) as { models?: { diarization?: boolean } };
-      diarizationReady = health.models?.diarization === true;
+    const [healthResponse, settingsResponse] = await Promise.all([
+      fetch("http://127.0.0.1:8765/api/v1/health"),
+      fetch("http://127.0.0.1:8765/api/v1/settings")
+    ]);
+    serverReady = healthResponse.ok;
+    if (healthResponse.ok) await healthResponse.json();
+    if (settingsResponse.ok) {
+      const appSettings = (await settingsResponse.json()) as {
+        transcription?: {
+          language?: "ja" | "auto";
+        };
+      };
+      language = appSettings.transcription?.language ?? "ja";
     }
   } catch {
     serverReady = false;
-    diarizationReady = false;
   }
-  if (!diarizationReady) {
-    diarizationEnabled = false;
-    diarizationInput.checked = false;
-  }
-  diarizationHint.textContent = diarizationReady
-    ? "録音停止後にローカルで分析します"
-    : "追加モデルが未導入です";
   render();
 }
 
@@ -108,15 +93,10 @@ primaryButton.addEventListener("click", async () => {
       tabId: tab.id,
       tabTitle: tab.title ?? "無題の録音",
       tabUrl: tab.url,
-      diarizationEnabled
+      language
     });
   }
   render();
-});
-
-diarizationInput.addEventListener("change", () => {
-  diarizationEnabled = diarizationInput.checked;
-  void chrome.storage.local.set({ diarizationEnabled });
 });
 
 viewerButton.addEventListener("click", () => {

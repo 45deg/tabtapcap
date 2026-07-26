@@ -49,7 +49,7 @@ export type BackgroundMessage =
       tabId: number;
       tabTitle: string;
       tabUrl?: string;
-      diarizationEnabled: boolean;
+      language: "ja" | "auto";
     }
   | { type: "STOP_CAPTURE" }
   | { type: "OPEN_VIEWER"; sessionId?: string }

@@ -4,12 +4,34 @@ import json
 import os
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class TranscriptionConfig(BaseModel):
+    language: str = Field(default="ja", pattern="^(ja|auto)$")
+    whisper_model: str = Field(default="small", pattern="^small$")
+    diarization_default: bool = False
+
+
+class FormattingConfig(BaseModel):
+    comma_pause_ms: int = Field(default=500, ge=200, le=1_000)
+    sentence_pause_ms: int = Field(default=1_200, ge=500, le=3_000)
+    paragraph_pause_ms: int = Field(default=2_000, ge=500, le=10_000)
+    max_paragraph_chars: int = Field(default=320, ge=80, le=1_000)
+
+    @model_validator(mode="after")
+    def paragraph_follows_sentence(self) -> FormattingConfig:
+        if self.paragraph_pause_ms < self.sentence_pause_ms:
+            raise ValueError("段落の無音時間は文の無音時間以上にしてください。")
+        return self
+
+
 class LocalConfig(BaseModel):
+    schema_version: int = 1
     allowed_extension_ids: list[str] = Field(default_factory=list)
+    transcription: TranscriptionConfig = Field(default_factory=TranscriptionConfig)
+    formatting: FormattingConfig = Field(default_factory=FormattingConfig)
 
 
 class Settings(BaseSettings):
@@ -44,9 +66,11 @@ class Settings(BaseSettings):
 
     def save_local_config(self, config: LocalConfig) -> None:
         self.ensure_directories()
-        self.config_path.write_text(
+        temporary = self.config_path.with_suffix(".json.tmp")
+        temporary.write_text(
             json.dumps(config.model_dump(), ensure_ascii=False, indent=2) + "\n"
         )
+        temporary.replace(self.config_path)
 
     def configure_offline_environment(self) -> None:
         if not self.runtime_offline:

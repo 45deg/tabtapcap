@@ -2,7 +2,51 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, computed_field
+
+from .config import FormattingConfig, TranscriptionConfig
+
+
+class SettingsOut(BaseModel):
+    transcription: TranscriptionConfig
+    formatting: FormattingConfig
+
+
+class SettingsPatch(BaseModel):
+    transcription: TranscriptionConfig
+    formatting: FormattingConfig
+
+
+class ModelOut(BaseModel):
+    id: str
+    name: str
+    repo_id: str
+    revision: str
+    requires_token: bool
+    purpose: str
+    approximate_size_bytes: int | None
+    installed: bool
+    job_id: str | None
+    job_state: str | None
+    job_phase: str | None
+
+
+class ModelDownloadRequest(BaseModel):
+    hf_token: SecretStr | None = None
+
+
+class ModelJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    model_id: str
+    state: str
+    phase: str
+    progress: float | None
+    error_code: str | None
+    error_message: str | None
+    created_at: str
+    completed_at: str | None
 
 
 class SpeakerOut(BaseModel):

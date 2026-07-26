@@ -122,7 +122,7 @@ async function startCapture(message: {
   streamId: string;
   tabTitle: string;
   tabUrl?: string;
-  diarizationEnabled: boolean;
+  language: "ja" | "auto";
 }): Promise<RecordingState> {
   if (stream) throw new Error("既に録音中です。");
   stopping = false;
@@ -154,8 +154,7 @@ async function startCapture(message: {
       sampleRate: audioContext.sampleRate,
       channels: 1,
       format: "s16le",
-      language: "ja",
-      diarizationEnabled: message.diarizationEnabled,
+      language: message.language,
       tabTitle: message.tabTitle,
       tabUrl: message.tabUrl
     })

@@ -4,7 +4,15 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +24,7 @@ from .config import settings
 from .database import get_db, initialize_database
 from .events import event_broker
 from .exports import export_json, export_txt, export_vtt
+from .model_manager import ModelManagerError, get_model_manager
 from .models import SessionRecord, SessionState, SpeakerRecord, UtteranceRecord
 from .processing import (
     delete_session_files,
@@ -27,9 +36,14 @@ from .processing import (
 )
 from .schemas import (
     HealthOut,
+    ModelDownloadRequest,
+    ModelJobOut,
+    ModelOut,
     SessionDetail,
     SessionPatch,
     SessionSummary,
+    SettingsOut,
+    SettingsPatch,
     SpeakerPatch,
     UtterancePatch,
 )
@@ -51,19 +65,44 @@ async def lifespan(_app: FastAPI):
     settings.ensure_directories()
     settings.configure_offline_environment()
     initialize_database()
+    manager = get_model_manager(settings)
+    manager.recover_interrupted_jobs()
     start_processing_worker()
     yield
     await stop_processing_worker()
+    await manager.shutdown()
 
 
 app = FastAPI(title="Local Tab Transcriber", version=__version__, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=[
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "tauri://localhost",
+        "https://tauri.localhost",
+    ],
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def require_local_control(request: Request) -> None:
+    if request.headers.get("x-local-client") != "viewer":
+        raise HTTPException(403, "ローカル管理画面から操作してください。")
+    origin = request.headers.get("origin", "")
+    allowed = (
+        not origin
+        or origin.startswith("http://127.0.0.1:")
+        or origin.startswith("http://localhost:")
+        or origin in {"tauri://localhost", "https://tauri.localhost"}
+    )
+    if not allowed:
+        raise HTTPException(403, "このOriginからの操作は許可されていません。")
+
+
+LocalControl = Annotated[None, Depends(require_local_control)]
 
 
 @app.get("/api/v1/health", response_model=HealthOut)
@@ -77,6 +116,63 @@ def health() -> HealthOut:
             capture_manager.active.session_id if capture_manager.active is not None else None
         ),
     )
+
+
+@app.get("/api/v1/settings", response_model=SettingsOut)
+def get_settings() -> SettingsOut:
+    config = settings.load_local_config()
+    return SettingsOut(
+        transcription=config.transcription,
+        formatting=config.formatting,
+    )
+
+
+@app.patch("/api/v1/settings", response_model=SettingsOut)
+def patch_settings(patch: SettingsPatch, _control: LocalControl) -> SettingsOut:
+    config = settings.load_local_config()
+    config.transcription = patch.transcription
+    config.formatting = patch.formatting
+    settings.save_local_config(config)
+    return SettingsOut(
+        transcription=config.transcription,
+        formatting=config.formatting,
+    )
+
+
+@app.get("/api/v1/models", response_model=list[ModelOut])
+def list_models() -> list[dict]:
+    return get_model_manager(settings).list_models()
+
+
+@app.post(
+    "/api/v1/models/{model_id}/download",
+    response_model=ModelJobOut,
+    status_code=202,
+)
+async def download_model(
+    model_id: str, request: ModelDownloadRequest, _control: LocalControl
+) -> object:
+    try:
+        token = request.hf_token.get_secret_value() if request.hf_token else None
+        return await get_model_manager(settings).start_download(model_id, token)
+    except ModelManagerError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/v1/model-jobs/{job_id}", response_model=ModelJobOut)
+def get_model_job(job_id: str) -> object:
+    job = get_model_manager(settings).get_job(job_id)
+    if job is None:
+        raise HTTPException(404, "ダウンロードジョブが見つかりません。")
+    return job
+
+
+@app.post("/api/v1/model-jobs/{job_id}/cancel", response_model=ModelJobOut)
+async def cancel_model_job(job_id: str, _control: LocalControl) -> object:
+    try:
+        return await get_model_manager(settings).cancel(job_id)
+    except ModelManagerError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @app.get("/api/v1/sessions", response_model=list[SessionSummary])

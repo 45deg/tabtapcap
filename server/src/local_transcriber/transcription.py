@@ -126,10 +126,13 @@ class TranscriptionEngine:
             )
         environment = os.environ.copy()
         environment["PYANNOTE_METRICS_ENABLED"] = "0"
+        worker_prefix = (
+            [sys.executable, "_diarization_worker"]
+            if getattr(sys, "frozen", False)
+            else [sys.executable, "-m", "local_transcriber.diarization_worker"]
+        )
         process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "-m",
-            "local_transcriber.diarization_worker",
+            *worker_prefix,
             str(self.diarization_path),
             str(audio_path),
             stdout=asyncio.subprocess.PIPE,

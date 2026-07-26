@@ -47,6 +47,50 @@ export interface Health {
   active_session_id: string | null;
 }
 
+export interface TranscriptionSettings {
+  language: "ja" | "auto";
+  whisper_model: "small";
+  diarization_default: boolean;
+}
+
+export interface FormattingSettings {
+  comma_pause_ms: number;
+  sentence_pause_ms: number;
+  paragraph_pause_ms: number;
+  max_paragraph_chars: number;
+}
+
+export interface AppSettings {
+  transcription: TranscriptionSettings;
+  formatting: FormattingSettings;
+}
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  repo_id: string;
+  revision: string;
+  requires_token: boolean;
+  purpose: string;
+  approximate_size_bytes: number | null;
+  installed: boolean;
+  job_id: string | null;
+  job_state: string | null;
+  job_phase: string | null;
+}
+
+export interface ModelJob {
+  id: string;
+  model_id: string;
+  state: string;
+  phase: string;
+  progress: number | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export type SessionEvent =
   | {
       type: "draft";

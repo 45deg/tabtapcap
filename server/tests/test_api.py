@@ -30,6 +30,54 @@ def test_health_reports_model_state(tmp_path: Path) -> None:
         settings.models_dir = original_models
 
 
+def test_settings_can_be_managed_from_local_viewer(tmp_path: Path) -> None:
+    original_data = settings.data_dir
+    settings.data_dir = tmp_path / "data"
+    try:
+        with TestClient(app) as client:
+            initial = client.get("/api/v1/settings")
+            assert initial.status_code == 200
+            payload = initial.json()
+            payload["transcription"]["language"] = "auto"
+            payload["formatting"]["paragraph_pause_ms"] = 2_500
+
+            denied = client.patch("/api/v1/settings", json=payload)
+            assert denied.status_code == 403
+
+            updated = client.patch(
+                "/api/v1/settings",
+                json=payload,
+                headers={"X-Local-Client": "viewer"},
+            )
+            assert updated.status_code == 200
+            assert updated.json()["transcription"]["language"] == "auto"
+            assert settings.config_path.exists()
+    finally:
+        settings.data_dir = original_data
+
+
+def test_models_api_requires_token_for_optional_diarization(tmp_path: Path) -> None:
+    original_models = settings.models_dir
+    settings.models_dir = tmp_path / "models"
+    try:
+        with TestClient(app) as client:
+            models = client.get("/api/v1/models")
+            assert models.status_code == 200
+            assert {item["id"] for item in models.json()} == {
+                "whisper-small",
+                "pyannote-community-1",
+            }
+            response = client.post(
+                "/api/v1/models/pyannote-community-1/download",
+                json={"hf_token": None},
+                headers={"X-Local-Client": "viewer"},
+            )
+            assert response.status_code == 409
+            assert "Token" in response.json()["detail"]
+    finally:
+        settings.models_dir = original_models
+
+
 def test_capture_finalize_and_export_with_fake_models() -> None:
     original_fake = settings.fake_transcript
     settings.fake_transcript = True

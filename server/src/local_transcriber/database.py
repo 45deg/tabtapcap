@@ -33,6 +33,11 @@ def initialize_database() -> None:
                     "BOOLEAN NOT NULL DEFAULT 1"
                 )
             )
+    if "settings_snapshot" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE sessions ADD COLUMN settings_snapshot TEXT")
+            )
     with SessionLocal() as db:
         stale = (
             db.query(SessionRecord)

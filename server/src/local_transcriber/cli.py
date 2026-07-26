@@ -10,8 +10,15 @@ from .config import settings
 def serve(args: argparse.Namespace) -> None:
     import uvicorn
 
+    application: object | str
+    if args.reload:
+        application = "local_transcriber.api:app"
+    else:
+        from .api import app
+
+        application = app
     uvicorn.run(
-        "local_transcriber.api:app",
+        application,
         host=settings.host,
         port=settings.port,
         reload=args.reload,

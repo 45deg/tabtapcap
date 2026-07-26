@@ -72,7 +72,7 @@ chrome.runtime.onMessage.addListener(
           streamId,
           tabTitle: message.tabTitle,
           tabUrl: message.tabUrl,
-          diarizationEnabled: message.diarizationEnabled
+          language: message.language
         });
         if (!response?.ok) throw new Error(response?.message ?? "録音を開始できませんでした。");
         await setState(response.state as RecordingState);

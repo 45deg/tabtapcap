@@ -61,7 +61,9 @@ def _mean_confidence(words: list[RecognizedWord]) -> float | None:
     return sum(values) / len(values) if values else None
 
 
-def format_words(words: list[RecognizedWord]) -> str:
+def format_words(
+    words: list[RecognizedWord], comma_gap_ms: int = COMMA_GAP_MS
+) -> str:
     """Join recognized words while adding punctuation only at audible pauses."""
     if not words:
         return ""
@@ -73,7 +75,7 @@ def format_words(words: list[RecognizedWord]) -> str:
             previous_text = previous.text.rstrip()
             next_text = word.text.lstrip()
             if (
-                gap >= COMMA_GAP_MS
+                gap >= comma_gap_ms
                 and previous_text
                 and not previous_text.endswith(PAUSE_PUNCTUATION)
                 and not next_text.startswith(PAUSE_PUNCTUATION)
@@ -86,7 +88,15 @@ def format_words(words: list[RecognizedWord]) -> str:
     return text
 
 
-def group_utterances(words: list[RecognizedWord], max_chars: int = 160) -> list[UtteranceDraft]:
+def group_utterances(
+    words: list[RecognizedWord],
+    max_chars: int = 160,
+    *,
+    comma_gap_ms: int = COMMA_GAP_MS,
+    sentence_gap_ms: int = SENTENCE_GAP_MS,
+    paragraph_gap_ms: int = PARAGRAPH_GAP_MS,
+    max_paragraph_chars: int = MAX_PARAGRAPH_CHARS,
+) -> list[UtteranceDraft]:
     if not words:
         return []
     results: list[UtteranceDraft] = []
@@ -96,7 +106,7 @@ def group_utterances(words: list[RecognizedWord], max_chars: int = 160) -> list[
         nonlocal current
         if not current:
             return
-        text = format_words(current)
+        text = format_words(current, comma_gap_ms)
         if text:
             results.append(
                 UtteranceDraft(
@@ -120,7 +130,7 @@ def group_utterances(words: list[RecognizedWord], max_chars: int = 160) -> list[
         text_length = sum(len(item.text) for item in current)
         should_split = (
             word.speaker_id != previous.speaker_id
-            or gap >= SENTENCE_GAP_MS
+            or gap >= sentence_gap_ms
             or text_length + len(word.text) > max_chars
         )
         if should_split:
@@ -138,8 +148,8 @@ def group_utterances(words: list[RecognizedWord], max_chars: int = 160) -> list[
         gap = utterance.start_ms - previous.end_ms
         utterance.paragraph_break_before = (
             utterance.speaker_id != previous.speaker_id
-            or gap >= PARAGRAPH_GAP_MS
-            or paragraph_chars + len(utterance.text) > MAX_PARAGRAPH_CHARS
+            or gap >= paragraph_gap_ms
+            or paragraph_chars + len(utterance.text) > max_paragraph_chars
         )
         if utterance.paragraph_break_before:
             paragraph_chars = len(utterance.text)

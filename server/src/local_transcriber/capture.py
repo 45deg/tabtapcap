@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import deque
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from pathlib import Path
 from fastapi import WebSocket, WebSocketDisconnect
 
 from .audio_protocol import AudioFrame, AudioFrameError, decode_audio_frame
+from .config import settings
 from .database import SessionLocal
 from .events import event_broker
 from .models import SessionRecord, SessionState, utc_now
@@ -80,12 +82,25 @@ class CaptureManager:
             sample_rate = int(payload.get("sampleRate", 0))
             if sample_rate < 8_000 or sample_rate > 192_000:
                 raise ValueError("sampleRateが不正です。")
+            local_config = settings.load_local_config()
+            language = str(payload.get("language") or local_config.transcription.language)
+            if language not in {"ja", "auto"}:
+                raise ValueError("languageが不正です。")
+            diarization_enabled = (
+                payload.get("diarizationEnabled")
+                if isinstance(payload.get("diarizationEnabled"), bool)
+                else local_config.transcription.diarization_default
+            )
+            snapshot = local_config.model_copy(deep=True)
+            snapshot.transcription.language = language
+            snapshot.transcription.diarization_default = diarization_enabled
             with SessionLocal() as db:
                 record = SessionRecord(
                     title=str(payload.get("tabTitle") or "無題の録音")[:500],
                     tab_url=str(payload.get("tabUrl") or "") or None,
-                    language=str(payload.get("language") or "ja"),
-                    diarization_enabled=payload.get("diarizationEnabled") is True,
+                    language=language,
+                    diarization_enabled=diarization_enabled,
+                    settings_snapshot=json.dumps(snapshot.model_dump(), ensure_ascii=False),
                     sample_rate=sample_rate,
                 )
                 db.add(record)

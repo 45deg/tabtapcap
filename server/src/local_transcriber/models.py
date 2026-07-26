@@ -47,6 +47,7 @@ class SessionRecord(Base):
     progress: Mapped[float] = mapped_column(Float, default=0.0)
     error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    settings_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_gap: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[str] = mapped_column(String(40), default=utc_now)
     stopped_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -120,6 +121,20 @@ class ProcessingJobRecord(Base):
     phase: Mapped[str] = mapped_column(String(32))
     state: Mapped[str] = mapped_column(String(32), default="queued")
     progress: Mapped[float] = mapped_column(Float, default=0.0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40), default=utc_now)
+    completed_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+
+class ModelJobRecord(Base):
+    __tablename__ = "model_jobs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    model_id: Mapped[str] = mapped_column(String(100))
+    state: Mapped[str] = mapped_column(String(32), default="queued")
+    phase: Mapped[str] = mapped_column(String(32), default="queued")
+    progress: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(40), default=utc_now)
     completed_at: Mapped[str | None] = mapped_column(String(40), nullable=True)

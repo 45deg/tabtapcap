@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api, serverUrl, serverWebSocketUrl } from "./api";
 import { Player } from "./components/Player";
+import { ModelsPage } from "./components/ModelsPage";
 import { SessionList } from "./components/SessionList";
+import { SettingsPage } from "./components/SettingsPage";
 import { Transcript } from "./components/Transcript";
 import { stateLabel } from "./format";
 import type { Health, SessionDetail, SessionEvent, SessionSummary, Utterance } from "./types";
 
 export default function App() {
+  const [view, setView] = useState<"recordings" | "models" | "settings">("recordings");
   const [health, setHealth] = useState<Health | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -17,6 +20,8 @@ export default function App() {
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [seekRequest, setSeekRequest] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(true);
+  const connectionStartedAt = useRef(Date.now());
 
   const refreshList = useCallback(async () => {
     const next = await api.sessions();
@@ -31,28 +36,42 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void Promise.all([api.health().then(setHealth), refreshList()]).catch((reason: Error) =>
-      setError(reason.message)
-    );
+    const refreshSystem = async () => {
+      try {
+        await Promise.all([api.health().then(setHealth), refreshList()]);
+        setConnecting(false);
+        setError((current) =>
+          current?.startsWith("ローカルサーバーに接続できません。") ? null : current
+        );
+      } catch (reason) {
+        setConnecting(true);
+        if (Date.now() - connectionStartedAt.current >= 10_000) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        }
+      }
+    };
+    void refreshSystem();
     const interval = window.setInterval(() => {
-      void refreshList().catch(() => undefined);
-    }, 5_000);
+      void refreshSystem();
+    }, 2_000);
     return () => window.clearInterval(interval);
   }, [refreshList]);
 
   useEffect(() => {
+    if (connecting) return;
     if (!selectedId) {
       setSession(null);
       return;
     }
     history.replaceState(null, "", `?session=${selectedId}`);
     void refreshSession(selectedId).catch((reason: Error) => setError(reason.message));
-  }, [selectedId, refreshSession]);
+  }, [connecting, selectedId, refreshSession]);
 
   useEffect(() => {
-    if (!selectedId) return;
-    const scheme = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${scheme}://${location.host}/ws/v1/events?sessionId=${selectedId}`);
+    if (connecting || !selectedId) return;
+    const socket = new WebSocket(
+      serverWebSocketUrl(`/ws/v1/events?sessionId=${selectedId}`)
+    );
     socket.onmessage = (message) => {
       const event = JSON.parse(message.data) as SessionEvent;
       if (event.type === "draft") setDraft(event.text);
@@ -76,7 +95,7 @@ export default function App() {
       }
     };
     return () => socket.close();
-  }, [selectedId, refreshList, refreshSession]);
+  }, [connecting, selectedId, refreshList, refreshSession]);
 
   const activeUtteranceId = useMemo(
     () =>
@@ -100,20 +119,45 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <SessionList sessions={sessions} selectedId={selectedId} onSelect={setSelectedId} />
+      <SessionList
+        sessions={sessions}
+        selectedId={selectedId}
+        view={view}
+        onViewChange={setView}
+        onSelect={(id) => {
+          setSelectedId(id);
+          setView("recordings");
+        }}
+      />
       <main className="workspace">
         {error && (
           <div className="error-banner" role="alert">
-            {error}
+            <div className="error-content">
+              <strong>{error.split("\n")[0]}</strong>
+              {error.includes("\n") && (
+                <details>
+                  <summary>診断情報を表示</summary>
+                  <pre>{error.split("\n").slice(1).join("\n").trim()}</pre>
+                </details>
+              )}
+            </div>
             <button type="button" onClick={() => setError(null)} aria-label="エラーを閉じる">
               ×
             </button>
           </div>
         )}
-        {!session ? (
+        {view === "models" ? (
+          <ModelsPage onError={setError} />
+        ) : view === "settings" ? (
+          <SettingsPage onError={setError} />
+        ) : !session ? (
           <div className="welcome">
-            <h2>録音を選択してください</h2>
-            <p>Chrome拡張から開始した録音を、ここで確認・編集できます。</p>
+            <h2>{connecting ? "ローカルサーバーを起動しています" : "録音を選択してください"}</h2>
+            <p>
+              {connecting
+                ? "初回起動は少し時間がかかります。この画面のままお待ちください。"
+                : "Chrome拡張から開始した録音を、ここで確認・編集できます。"}
+            </p>
           </div>
         ) : (
           <>
@@ -145,7 +189,7 @@ export default function App() {
                   <a
                     key={format}
                     className="button secondary"
-                    href={`/api/v1/sessions/${session.id}/export?format=${format}`}
+                    href={serverUrl(`/api/v1/sessions/${session.id}/export?format=${format}`)}
                     download
                   >
                     {format.toUpperCase()}
@@ -169,8 +213,8 @@ export default function App() {
 
             {health && !health.models.whisper && (
               <div className="notice">
-                Whisperモデルが未導入です。サーバーで
-                <code>local-transcriber models download</code>を実行してください。
+                文字起こしモデルが未導入です。「モデル」画面からWhisperとVADを
+                ダウンロードしてください。
               </div>
             )}
 

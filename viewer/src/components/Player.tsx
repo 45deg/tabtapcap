@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { serverUrl } from "../api";
 import { formatDuration } from "../format";
 
 interface Props {
@@ -22,11 +23,10 @@ export function Player({ sessionId, currentTimeMs, onTimeChange, seekRequest }: 
       <audio
         ref={ref}
         controls
-        src={`/api/v1/sessions/${sessionId}/audio`}
+        src={serverUrl(`/api/v1/sessions/${sessionId}/audio`)}
         onTimeUpdate={(event) => onTimeChange(event.currentTarget.currentTime * 1000)}
       />
       <output aria-live="off">{formatDuration(currentTimeMs)}</output>
     </footer>
   );
 }
-

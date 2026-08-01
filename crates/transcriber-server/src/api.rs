@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock, broadcast};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
+use crate::apple_speech::AppleSpeech;
 use crate::audio::{decode_frame, pcm_to_wav, read_wav};
 use crate::db::{Database, require_session};
 use crate::exports;
@@ -32,6 +33,7 @@ pub struct ServerConfig {
     pub port: u16,
     pub data_dir: PathBuf,
     pub models_dir: PathBuf,
+    pub apple_speech_path: Option<PathBuf>,
 }
 
 pub struct ServerState {
@@ -136,6 +138,7 @@ pub async fn serve(config: ServerConfig) -> Result<()> {
     settings.diarization_default_off();
     let database = Database::new(config.data_dir.join("transcriber.sqlite3"))?;
     let (events, _) = broadcast::channel(128);
+    let apple_speech = AppleSpeech::new(config.apple_speech_path);
     let state = Arc::new(ServerState {
         database,
         data_dir: config.data_dir,
@@ -143,8 +146,8 @@ pub async fn serve(config: ServerConfig) -> Result<()> {
         settings: RwLock::new(settings),
         active: Mutex::new(None),
         events,
-        transcriber: Arc::new(Transcriber::new(&config.models_dir)),
-        models: ModelManager::new(&config.models_dir),
+        transcriber: Arc::new(Transcriber::new(&config.models_dir, apple_speech.clone())),
+        models: ModelManager::new(&config.models_dir, apple_speech),
     });
     let app = router(state);
     let listener = tokio::net::TcpListener::bind((config.host.as_str(), config.port)).await?;
@@ -217,6 +220,7 @@ async fn health(State(state): State<Arc<ServerState>>) -> Json<Health> {
     let transcription = state.transcriber.model_ready(model_id);
     let whisper = model_id.starts_with("whisper-") && transcription;
     let parakeet = model_id.starts_with("parakeet-") && transcription;
+    let apple = model_id == crate::apple_speech::APPLE_SPEECH_MODEL_ID && transcription;
     let vad = state.transcriber.vad_ready();
     let dependencies_ready = !Transcriber::vad_required(model_id) || vad;
     Json(Health {
@@ -230,6 +234,7 @@ async fn health(State(state): State<Arc<ServerState>>) -> Json<Health> {
             transcription,
             whisper,
             parakeet,
+            apple,
             vad,
             diarization: false,
         },
@@ -250,6 +255,15 @@ async fn update_settings(
     settings
         .validate_and_disable_diarization()
         .map_err(ApiError::bad_request)?;
+    if settings.transcription.model_id == crate::apple_speech::APPLE_SPEECH_MODEL_ID
+        && !state
+            .transcriber
+            .model_ready(crate::apple_speech::APPLE_SPEECH_MODEL_ID)
+    {
+        return Err(ApiError::bad_request(
+            "Apple SpeechはこのMacでは利用できません。macOS 26と対応ハードウェアを確認してください。",
+        ));
+    }
     save_settings(&state.config_path, &settings)?;
     *state.settings.write().await = settings.clone();
     Ok(Json(settings))
@@ -843,9 +857,10 @@ async fn process_session(state: Arc<ServerState>, session_id: &str) -> Result<()
     let settings = state.database.settings_snapshot(session_id)?;
     let model_id = settings.transcription.model_id.clone();
     let transcriber = state.transcriber.clone();
-    let words =
-        tokio::task::spawn_blocking(move || transcriber.transcribe(&audio, &language, &model_id))
-            .await??;
+    let words = tokio::task::spawn_blocking(move || {
+        transcriber.transcribe(&audio, &wav_path, &language, &model_id)
+    })
+    .await??;
 
     let revision =
         state

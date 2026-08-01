@@ -15,11 +15,14 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(8765);
+    let apple_speech_path =
+        std::env::var_os("LOCAL_TRANSCRIBER_APPLE_SPEECH_PATH").map(PathBuf::from);
     serve(ServerConfig {
         host: "127.0.0.1".into(),
         port,
         data_dir,
         models_dir,
+        apple_speech_path,
     })
     .await
 }

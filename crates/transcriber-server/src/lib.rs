@@ -1,4 +1,5 @@
 mod api;
+mod apple_speech;
 mod audio;
 mod db;
 mod exports;

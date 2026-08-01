@@ -8,6 +8,7 @@ use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperVadParams,
 };
 
+use crate::apple_speech::{APPLE_SPEECH_MODEL_ID, AppleSpeech};
 use crate::model_manager::{parakeet_model_files, whisper_model_filename};
 use crate::types::RecognizedWord;
 
@@ -20,6 +21,7 @@ const PARAKEET_SPLIT_STEP_SAMPLES: usize = PARAKEET_SAMPLE_RATE / 100;
 pub struct Transcriber {
     models_dir: PathBuf,
     vad_path: PathBuf,
+    apple_speech: AppleSpeech,
     context: Mutex<Option<LoadedEngine>>,
 }
 
@@ -35,15 +37,20 @@ enum LoadedEngine {
 }
 
 impl Transcriber {
-    pub fn new(models_dir: &Path) -> Self {
+    pub fn new(models_dir: &Path, apple_speech: AppleSpeech) -> Self {
         Self {
             models_dir: models_dir.to_path_buf(),
             vad_path: models_dir.join("ggml-silero-v6.2.0.bin"),
+            apple_speech,
             context: Mutex::new(None),
         }
     }
 
     pub fn model_ready(&self, model_id: &str) -> bool {
+        if model_id == APPLE_SPEECH_MODEL_ID {
+            let status = self.apple_speech.status("ja");
+            return status.available && status.supported;
+        }
         if let Some(filename) = whisper_model_filename(model_id) {
             return self.models_dir.join(filename).is_file();
         }
@@ -67,6 +74,7 @@ impl Transcriber {
     pub fn transcribe(
         &self,
         audio: &[f32],
+        audio_path: &Path,
         language: &str,
         model_id: &str,
     ) -> Result<Vec<RecognizedWord>> {
@@ -76,7 +84,9 @@ impl Transcriber {
         if Self::vad_required(model_id) && !self.vad_ready() {
             bail!("VADモデルが未導入です。モデル画面からダウンロードしてください。");
         }
-        if let Some(filename) = whisper_model_filename(model_id) {
+        if model_id == APPLE_SPEECH_MODEL_ID {
+            self.apple_speech.transcribe(audio_path, language)
+        } else if let Some(filename) = whisper_model_filename(model_id) {
             self.transcribe_whisper(audio, language, model_id, filename)
         } else if let Some((model, tokens)) = parakeet_model_files(model_id) {
             self.transcribe_parakeet(audio, model_id, model, tokens)

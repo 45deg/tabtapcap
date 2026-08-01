@@ -8,6 +8,27 @@ use tauri::{AppHandle, Manager, State};
 
 struct AppLogPath(PathBuf);
 
+fn apple_speech_sidecar_path() -> Option<PathBuf> {
+    std::env::var_os("LOCAL_TRANSCRIBER_APPLE_SPEECH_PATH")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|path| path.parent().map(|parent| parent.join("apple-speech-cli")))
+        })
+        .filter(|path| path.is_file())
+        .or_else(|| {
+            #[cfg(target_arch = "aarch64")]
+            let file_name = "apple-speech-cli-aarch64-apple-darwin";
+            #[cfg(target_arch = "x86_64")]
+            let file_name = "apple-speech-cli-x86_64-apple-darwin";
+            let development_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("binaries")
+                .join(file_name);
+            development_path.is_file().then_some(development_path)
+        })
+}
+
 fn append_log(path: &Path, source: &str, message: &str) {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -121,6 +142,7 @@ pub fn run() {
                     port: 8765,
                     data_dir,
                     models_dir,
+                    apple_speech_path: apple_speech_sidecar_path(),
                 };
                 append_log(&log_path, "server", "http://127.0.0.1:8765 で待機します。");
                 if let Err(error) = local_transcriber_server::serve(config).await {

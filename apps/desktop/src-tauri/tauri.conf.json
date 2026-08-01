@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": ["app"],
+    "externalBin": [
+      "binaries/apple-speech-cli"
+    ],
     "icon": [
       "icons/icon.png"
     ],

@@ -56,7 +56,8 @@ export interface TranscriptionSettings {
     | "whisper-medium"
     | "whisper-large-v3"
     | "whisper-large-v3-turbo"
-    | "parakeet-tdt-0.6b-ja";
+    | "parakeet-tdt-0.6b-ja"
+    | "apple-speech";
   diarization_default: boolean;
 }
 
@@ -75,13 +76,16 @@ export interface AppSettings {
 export interface ModelInfo {
   id: string;
   name: string;
-  engine: "whisper" | "parakeet" | "utility";
+  engine: "whisper" | "parakeet" | "apple" | "utility";
   repo_id: string;
   revision: string;
   requires_token: boolean;
   purpose: string;
   approximate_size_bytes: number | null;
   installed: boolean;
+  available: boolean;
+  availability_message: string | null;
+  managed_by_system: boolean;
   job_id: string | null;
   job_state: string | null;
   job_phase: string | null;

@@ -97,7 +97,9 @@ impl AppSettings {
         if !crate::model_manager::is_transcription_model(&self.transcription.model_id) {
             return Err("利用できない文字起こしモデルです。".into());
         }
-        if self.transcription.model_id.starts_with("parakeet-") {
+        if self.transcription.model_id.starts_with("parakeet-")
+            || self.transcription.model_id == crate::apple_speech::APPLE_SPEECH_MODEL_ID
+        {
             self.transcription.language = "ja".into();
         }
         let f = &self.formatting;
@@ -129,6 +131,7 @@ pub struct ModelStatus {
     pub transcription: bool,
     pub whisper: bool,
     pub parakeet: bool,
+    pub apple: bool,
     pub vad: bool,
     pub diarization: bool,
 }
@@ -144,6 +147,9 @@ pub struct ModelInfo {
     pub purpose: &'static str,
     pub approximate_size_bytes: Option<u64>,
     pub installed: bool,
+    pub available: bool,
+    pub availability_message: Option<String>,
+    pub managed_by_system: bool,
     pub job_id: Option<String>,
     pub job_state: Option<String>,
     pub job_phase: Option<String>,
@@ -244,6 +250,20 @@ mod tests {
     fn fixes_parakeet_language_to_japanese() {
         let mut settings: AppSettings = serde_json::from_str(
             r#"{"transcription":{"language":"auto","model_id":"parakeet-tdt-0.6b-ja"}}"#,
+        )
+        .expect("settings should deserialize");
+
+        settings
+            .validate_and_disable_diarization()
+            .expect("settings should validate");
+
+        assert_eq!(settings.transcription.language, "ja");
+    }
+
+    #[test]
+    fn fixes_apple_speech_language_to_japanese() {
+        let mut settings: AppSettings = serde_json::from_str(
+            r#"{"transcription":{"language":"auto","model_id":"apple-speech"}}"#,
         )
         .expect("settings should deserialize");
 

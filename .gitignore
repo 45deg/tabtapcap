@@ -8,5 +8,6 @@ crates/transcriber-server/.data/
 crates/transcriber-server/.models/
 apps/extension/.output/
 apps/desktop/src-tauri/binaries/local-transcriber-server-*
+apps/desktop/src-tauri/binaries/apple-speech-cli-*
 apps/desktop/src-tauri/resources/server/
 target/

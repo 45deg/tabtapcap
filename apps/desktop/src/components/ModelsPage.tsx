@@ -63,7 +63,7 @@ export function ModelsPage({ onError }: { onError: (message: string) => void }) 
       <header className="management-header">
         <div>
           <h2 id="models-title">モデル</h2>
-          <p>文字起こしと発話区間検出に使うモデルを、このMacへ保存します。</p>
+          <p>文字起こしと発話区間検出に使うモデルの状態を確認します。</p>
         </div>
       </header>
       {loading ? (
@@ -73,6 +73,15 @@ export function ModelsPage({ onError }: { onError: (message: string) => void }) 
           {models.map((model) => {
             const job = jobs[model.id];
             const active = job && ["queued", "running"].includes(job.state);
+            const stateLabel = !model.available
+              ? "利用不可"
+              : model.managed_by_system
+                ? model.installed
+                  ? "OSに導入済み"
+                  : "初回利用時に取得"
+                : model.installed
+                  ? "導入済み"
+                  : "未導入";
             return (
               <article className="model-card" key={model.id}>
                 <div className="model-card-heading">
@@ -80,10 +89,24 @@ export function ModelsPage({ onError }: { onError: (message: string) => void }) 
                     <h3>{model.name}</h3>
                     <p>{model.purpose}</p>
                   </div>
-                  <span className={model.installed ? "model-state ready" : "model-state"}>
-                    {model.installed ? "導入済み" : "未導入"}
+                  <span
+                    className={
+                      model.available && (model.installed || model.managed_by_system)
+                        ? "model-state ready"
+                        : "model-state"
+                    }
+                  >
+                    {stateLabel}
                   </span>
                 </div>
+                {model.availability_message && (
+                  <p className="model-meta">{model.availability_message}</p>
+                )}
+                {model.managed_by_system && model.available && (
+                  <p className="model-meta">
+                    モデルの取得・更新・保存領域はmacOSが管理します。
+                  </p>
+                )}
                 {formatBytes(model.approximate_size_bytes) && (
                   <p className="model-meta">目安 {formatBytes(model.approximate_size_bytes)}</p>
                 )}
@@ -94,7 +117,7 @@ export function ModelsPage({ onError }: { onError: (message: string) => void }) 
                     {job.error_message && <p>{job.error_message}</p>}
                   </div>
                 )}
-                {!model.installed && (
+                {!model.installed && !model.managed_by_system && (
                   <div className="model-actions">
                     <button
                       type="button"

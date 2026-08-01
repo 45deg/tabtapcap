@@ -26,6 +26,13 @@ export function SettingsPage({
 
   if (!settings) return <p className="empty-transcript">設定を読み込んでいます…</p>;
 
+  const selectedModel = models.find(
+    (model) => model.id === settings.transcription.model_id
+  );
+  const fixedJapanese =
+    settings.transcription.model_id.startsWith("parakeet-") ||
+    settings.transcription.model_id === "apple-speech";
+
   const updateFormatting = (
     key: keyof AppSettings["formatting"],
     value: number
@@ -63,14 +70,16 @@ export function SettingsPage({
             <span>
               言語
               <small>
-                {settings.transcription.model_id.startsWith("parakeet-")
-                  ? "Parakeet Japaneseは日本語固定です。"
+                {fixedJapanese
+                  ? settings.transcription.model_id === "apple-speech"
+                    ? "Apple Speechは日本語（ja-JP）固定です。"
+                    : "Parakeet Japaneseは日本語固定です。"
                   : "日本語固定、または音声から自動判定します。"}
               </small>
             </span>
             <select
               value={settings.transcription.language}
-              disabled={settings.transcription.model_id.startsWith("parakeet-")}
+              disabled={fixedJapanese}
               onChange={(event) => {
                 setSaved(false);
                 setSettings({
@@ -89,7 +98,12 @@ export function SettingsPage({
           <label className="setting-row">
             <span>
               認識モデル
-              <small>録音開始時に選んだモデルで処理します。</small>
+              <small>
+                {selectedModel?.availability_message ??
+                  (selectedModel?.managed_by_system
+                    ? "Appleのモデルを初回利用時に取得し、macOSが管理します。"
+                    : "録音開始時に選んだモデルで処理します。")}
+              </small>
             </span>
             <select
               value={settings.transcription.model_id}
@@ -97,22 +111,30 @@ export function SettingsPage({
                 setSaved(false);
                 const modelId =
                   event.target.value as AppSettings["transcription"]["model_id"];
+                const requiresJapanese =
+                  modelId.startsWith("parakeet-") || modelId === "apple-speech";
                 setSettings({
                   ...settings,
                   transcription: {
                     ...settings.transcription,
                     model_id: modelId,
-                    language: modelId.startsWith("parakeet-")
-                      ? "ja"
-                      : settings.transcription.language
+                    language: requiresJapanese ? "ja" : settings.transcription.language
                   }
                 });
               }}
             >
               {models.map((model) => (
-                <option key={model.id} value={model.id}>
+                <option key={model.id} value={model.id} disabled={!model.available}>
                   {model.name}
-                  {model.installed ? "" : "（未導入）"}
+                  {!model.available
+                    ? "（利用不可）"
+                    : model.managed_by_system
+                      ? model.installed
+                        ? "（OSに導入済み）"
+                        : "（初回利用時に取得）"
+                      : model.installed
+                        ? ""
+                        : "（未導入）"}
                 </option>
               ))}
             </select>
@@ -157,8 +179,8 @@ export function SettingsPage({
         <div>
           <h3 id="data-deletion-title">データの削除</h3>
           <p>
-            録音、文字起こし、設定、ダウンロード済みモデルをこのMacから削除します。
-            この操作は元に戻せません。
+            録音、文字起こし、設定、アプリがダウンロードしたモデルをこのMacから削除します。
+            macOSが管理するApple Speechモデルは削除されません。この操作は元に戻せません。
           </p>
         </div>
         <div className="data-deletion-actions">
@@ -169,7 +191,7 @@ export function SettingsPage({
             onClick={async () => {
               if (
                 !confirm(
-                  "すべての録音、文字起こし、設定、ダウンロード済みモデルを削除しますか？\n\nこの操作は元に戻せません。"
+                  "すべての録音、文字起こし、設定、アプリがダウンロードしたモデルを削除しますか？\n\nmacOSが管理するApple Speechモデルは削除されません。この操作は元に戻せません。"
                 )
               ) {
                 return;

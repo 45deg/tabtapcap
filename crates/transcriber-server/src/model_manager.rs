@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 use tar::Archive;
 use tokio::io::AsyncWriteExt;
 
+use crate::apple_speech::{APPLE_SPEECH_MODEL_ID, AppleSpeech};
 use crate::db::{compact_id, now};
 use crate::types::{ModelInfo, ModelJob};
 
@@ -30,9 +31,22 @@ struct ModelSpec {
 enum ModelPackage {
     File,
     TarBz2 { directory: &'static str },
+    System,
 }
 
 const MODELS: &[ModelSpec] = &[
+    ModelSpec {
+        id: APPLE_SPEECH_MODEL_ID,
+        name: "Apple Speech（macOS 26以降）",
+        engine: "apple",
+        repo_id: "Apple Speech framework",
+        filename: "",
+        url: "",
+        purpose: "OS内蔵のオンデバイス日本語文字起こし。必要なモデルは初回利用時にOSが取得",
+        approximate_size: 0,
+        sha256: None,
+        package: ModelPackage::System,
+    },
     ModelSpec {
         id: "whisper-tiny",
         name: "Whisper tiny",
@@ -140,6 +154,7 @@ pub struct ModelManager {
 
 struct Inner {
     models_dir: PathBuf,
+    apple_speech: AppleSpeech,
     jobs: Mutex<HashMap<String, ModelJob>>,
     active_by_model: Mutex<HashMap<String, String>>,
     cancellations: Mutex<HashMap<String, Arc<AtomicBool>>>,
@@ -147,10 +162,11 @@ struct Inner {
 }
 
 impl ModelManager {
-    pub fn new(models_dir: impl AsRef<Path>) -> Self {
+    pub fn new(models_dir: impl AsRef<Path>, apple_speech: AppleSpeech) -> Self {
         Self {
             inner: Arc::new(Inner {
                 models_dir: models_dir.as_ref().to_path_buf(),
+                apple_speech,
                 jobs: Mutex::new(HashMap::new()),
                 active_by_model: Mutex::new(HashMap::new()),
                 cancellations: Mutex::new(HashMap::new()),
@@ -160,6 +176,7 @@ impl ModelManager {
     }
 
     pub fn list(&self) -> Vec<ModelInfo> {
+        let apple_status = self.inner.apple_speech.status("ja");
         let active = self
             .inner
             .active_by_model
@@ -170,16 +187,33 @@ impl ModelManager {
             .iter()
             .map(|model| {
                 let job = active.get(model.id).and_then(|id| jobs.get(id));
+                let is_system = matches!(model.package, ModelPackage::System);
+                let status = is_system.then_some(&apple_status);
                 ModelInfo {
                     id: model.id,
                     name: model.name,
                     engine: model.engine,
                     repo_id: model.repo_id,
-                    revision: "main",
+                    revision: if is_system { "system" } else { "main" },
                     requires_token: false,
                     purpose: model.purpose,
-                    approximate_size_bytes: Some(model.approximate_size),
-                    installed: self.is_installed(model),
+                    approximate_size_bytes: (!is_system).then_some(model.approximate_size),
+                    installed: status
+                        .map_or_else(|| self.is_installed(model), |value| value.installed),
+                    available: status.is_none_or(|value| value.available && value.supported),
+                    availability_message: status.and_then(|value| {
+                        if value.available && value.supported {
+                            None
+                        } else {
+                            value.message.clone().or_else(|| {
+                                Some(format!(
+                                    "Apple Speechを利用できません（{}）",
+                                    value.asset_status
+                                ))
+                            })
+                        }
+                    }),
+                    managed_by_system: is_system,
                     job_id: job.map(|value| value.id.clone()),
                     job_state: job.map(|value| value.state.clone()),
                     job_phase: job.map(|value| value.phase.clone()),
@@ -202,6 +236,9 @@ impl ModelManager {
             .iter()
             .find(|model| model.id == model_id)
             .ok_or_else(|| anyhow!("モデルが見つかりません。"))?;
+        if matches!(model.package, ModelPackage::System) {
+            bail!("Apple SpeechのモデルはmacOSが初回利用時に取得・管理します。");
+        }
         if self.is_installed(model) {
             bail!("このモデルは導入済みです。");
         }
@@ -411,6 +448,7 @@ impl ModelManager {
         job_id: &str,
     ) -> Result<()> {
         match model.package {
+            ModelPackage::System => bail!("OS管理モデルはこの方法では取得できません。"),
             ModelPackage::File => {
                 let target = self.inner.models_dir.join(model.filename);
                 tokio::fs::rename(temporary, target).await?;
@@ -501,6 +539,8 @@ mod tests {
     use bzip2::Compression;
     use bzip2::write::BzEncoder;
 
+    use crate::apple_speech::AppleSpeech;
+
     use super::{ModelManager, ModelPackage, ModelSpec};
 
     static TEST_ARCHIVE_MODEL: ModelSpec = ModelSpec {
@@ -530,7 +570,7 @@ mod tests {
         let encoder = archive.into_inner().expect("finish tar");
         encoder.finish().expect("finish bzip2");
 
-        let manager = ModelManager::new(directory.path());
+        let manager = ModelManager::new(directory.path(), AppleSpeech::unconfigured());
         manager
             .install_download(&TEST_ARCHIVE_MODEL, &archive_path, "test-job")
             .await

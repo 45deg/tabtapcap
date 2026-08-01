@@ -14,7 +14,7 @@ crates/
 
 ## Macアプリとして使う
 
-必要な開発環境は、Apple Silicon Mac、Node.js 24以降、pnpm 11、Rust、Xcode Command Line Tools、CMakeです。Python、uv、ffmpegは実行にもビルドにも使いません。
+必要な開発環境は、Apple Silicon Mac、Node.js 24以降、pnpm 11、Rust、Xcode 26、CMakeです。Python、uv、ffmpegは実行にもビルドにも使いません。
 
 ```bash
 pnpm install
@@ -31,7 +31,7 @@ apps/extension/dist
 
 1. `.app`を起動します。Rust APIはTauriプロセス内で`127.0.0.1:8765`に起動します。
 2. `chrome://extensions`でデベロッパーモードを有効にし、`apps/extension/dist`を「パッケージ化されていない拡張機能」として読み込みます。
-3. アプリの「モデル」で使用するWhisperモデルとSilero VAD、またはNVIDIA Parakeet 0.6B Japaneseをダウンロードします。Tokenは不要です。
+3. アプリの「モデル」で使用するWhisperモデルとSilero VAD、またはNVIDIA Parakeet 0.6B Japaneseをダウンロードします。macOS 26以降ではApple Speechも選択でき、必要なモデルは初回利用時にmacOSが取得します。Tokenは不要です。
 4. 「設定」で認識モデルを選び、必要なら認識言語、句読点、文、段落の閾値を調整します。
 5. Chromeの対象タブで拡張ボタンを押して録音を開始します。停止も同じポップアップから行います。
 
@@ -76,14 +76,17 @@ Chromeとデスクトップの表示は、PCM区間の波形そのものでは�
 録音停止後は、すべて同じRustプロセス内で次の順に処理します。
 
 ```text
-PCM16 → 16kHz mono WAV → whisper.cpp + Silero VAD / sherpa-onnx + Parakeet → 句読点・文区切り・段落生成
+PCM16 → 16kHz mono WAV → whisper.cpp + Silero VAD / sherpa-onnx + Parakeet / Apple Speech → 句読点・文区切り・段落生成
 ```
 
-Whisperは`whisper-rs`のMetalビルドを使用し、tiny、base、small、medium、large-v3、large-v3 turboから選べます。Parakeetは公式sherpa-onnx変換版の日本語CTC int8モデルをCPUで実行します。推論時は選択した1モデルだけをメモリへ読み込みます。
+Whisperは`whisper-rs`のMetalビルドを使用し、tiny、base、small、medium、large-v3、large-v3 turboから選べます。Parakeetは公式sherpa-onnx変換版の日本語CTC int8モデルをCPUで実行します。macOS 26以降では、OS管理の`SpeechAnalyzer`、`SpeechTranscriber`、`SpeechDetector`も選択できます。推論時は選択した1モデルだけを使用します。
 
 処理状態は`capturing`、`finalizing`、`transcribing`、`formatting`、`ready`の順に更新され、イベントWebSocketからデスクトップへ通知されます。文章整形は無音時間と文字数に基づく決定的な処理で、元の発言を言い換えません。結果はSQLiteを正本として、TXT、VTT、JSONへ出力できます。Parakeetモデルと推論ランタイムのライセンス情報は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
 
 ## 開発
+
+macOS 26以降のApple Speechを任意の認識エンジンとして追加する調査と、Swift CLIの
+reference implementationは[docs/apple-speech-investigation.md](docs/apple-speech-investigation.md)を参照してください。
 
 Tauriアプリを開発モードで起動します。
 

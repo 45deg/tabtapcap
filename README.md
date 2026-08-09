@@ -2,6 +2,12 @@
 
 Chromeの現在のタブ音声をMac上だけで文字起こしし、句読点・文・段落を整えた日本語テキストとWebVTTを編集・保存するローカルアプリです。
 
+## 開発状況
+
+本プロジェクトは開発中です。現在はApple Silicon Macを対象としており、一般配布向けに署名・notarizationを行ったバイナリは提供していません。利用する場合はソースコードからアプリとChrome拡張をビルドしてください。
+
+![文字起こし結果を編集してTXT、WebVTT、JSONへ保存できるアプリ画面](docs/images/app-demo.jpg)
+
 ```text
 apps/
   desktop/    React ViewerとTauri macOSアプリ
@@ -116,3 +122,7 @@ pnpm tauri:dev
 pnpm tauri:build
 cargo test --workspace
 ```
+
+## ライセンス
+
+本プロジェクトは[MIT License](LICENSE)の下で公開します。使用するモデルや依存コンポーネントのライセンス情報は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。

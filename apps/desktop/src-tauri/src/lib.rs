@@ -3,13 +3,13 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use local_transcriber_server::ServerConfig;
+use tabtapcap_server::ServerConfig;
 use tauri::{AppHandle, Manager, State};
 
 struct AppLogPath(PathBuf);
 
 fn apple_speech_sidecar_path() -> Option<PathBuf> {
-    std::env::var_os("LOCAL_TRANSCRIBER_APPLE_SPEECH_PATH")
+    std::env::var_os("TABTAPCAP_APPLE_SPEECH_PATH")
         .map(PathBuf::from)
         .or_else(|| {
             std::env::current_exe()
@@ -145,7 +145,7 @@ pub fn run() {
                     apple_speech_path: apple_speech_sidecar_path(),
                 };
                 append_log(&log_path, "server", "http://127.0.0.1:8765 で待機します。");
-                if let Err(error) = local_transcriber_server::serve(config).await {
+                if let Err(error) = tabtapcap_server::serve(config).await {
                     append_log(
                         &log_path,
                         "server",

@@ -1,5 +1,5 @@
 {
-  "name": "@local-transcriber/extension",
+  "name": "@tabtapcap/extension",
   "version": "0.1.0",
   "private": true,
   "type": "module",

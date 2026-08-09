@@ -2179,42 +2179,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
-name = "local-tab-transcriber"
-version = "0.1.0"
-dependencies = [
- "local-transcriber-server",
- "tauri",
- "tauri-build",
- "tauri-plugin-single-instance",
-]
-
-[[package]]
-name = "local-transcriber-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "bytes",
- "bzip2 0.6.1",
- "chrono",
- "futures-util",
- "hound",
- "reqwest 0.12.28",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "sherpa-onnx",
- "tar",
- "tempfile",
- "tokio",
- "tower-http",
- "tracing",
- "uuid",
- "whisper-rs",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3864,6 +3828,42 @@ dependencies = [
  "pkg-config",
  "toml 0.8.2",
  "version-compare",
+]
+
+[[package]]
+name = "tabtapcap"
+version = "0.1.0"
+dependencies = [
+ "tabtapcap-server",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-single-instance",
+]
+
+[[package]]
+name = "tabtapcap-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "bytes",
+ "bzip2 0.6.1",
+ "chrono",
+ "futures-util",
+ "hound",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sherpa-onnx",
+ "tar",
+ "tempfile",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "uuid",
+ "whisper-rs",
 ]
 
 [[package]]

@@ -25,7 +25,7 @@ crates/
 ```bash
 pnpm install
 pnpm tauri:build
-pnpm --filter @local-transcriber/extension build
+pnpm --filter @tabtapcap/extension build
 ```
 
 生成物は次の場所です。
@@ -44,13 +44,13 @@ apps/extension/dist
 アプリはローカル開発用のad-hoc署名で、notarizationは行っていません。データ、設定、モデルは通常、次のディレクトリへ保存されます。
 
 ```text
-~/Library/Application Support/app.local-transcriber.desktop/
+~/Library/Application Support/app.tabtapcap.desktop/
 ```
 
 Rust APIの起動エラーは次のログへ保存されます。接続に10秒以上失敗した場合は、アプリ上の「診断情報を表示」から末尾ログも確認できます。ログは2MBを超えると前回分へローテーションします。
 
 ```text
-~/Library/Application Support/app.local-transcriber.desktop/logs/app.log
+~/Library/Application Support/app.tabtapcap.desktop/logs/app.log
 ```
 
 ## 処理フロー
@@ -109,7 +109,7 @@ pnpm dev
 Rust APIだけを起動する場合:
 
 ```bash
-cargo run -p local-transcriber-server
+cargo run -p tabtapcap-server
 ```
 
 ## 主なコマンド

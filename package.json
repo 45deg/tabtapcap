@@ -1,13 +1,13 @@
 {
-  "name": "local-tab-transcriber",
+  "name": "tabtapcap",
   "private": true,
   "packageManager": "pnpm@11.1.1",
   "scripts": {
-    "dev": "concurrently -k -n server,desktop,extension -c blue,green,magenta \"pnpm dev:server\" \"pnpm --filter @local-transcriber/desktop dev\" \"pnpm --filter @local-transcriber/extension dev\"",
-    "dev:server": "cargo run -p local-transcriber-server",
-    "tauri:dev": "pnpm --filter @local-transcriber/desktop tauri:dev",
-    "tauri:build": "pnpm --filter @local-transcriber/desktop tauri:build",
-    "build": "pnpm --filter @local-transcriber/desktop build && pnpm --filter @local-transcriber/extension build",
+    "dev": "concurrently -k -n server,desktop,extension -c blue,green,magenta \"pnpm dev:server\" \"pnpm --filter @tabtapcap/desktop dev\" \"pnpm --filter @tabtapcap/extension dev\"",
+    "dev:server": "cargo run -p tabtapcap-server",
+    "tauri:dev": "pnpm --filter @tabtapcap/desktop tauri:dev",
+    "tauri:build": "pnpm --filter @tabtapcap/desktop tauri:build",
+    "build": "pnpm --filter @tabtapcap/desktop build && pnpm --filter @tabtapcap/extension build",
     "test": "pnpm -r test && cargo test --workspace",
     "check": "pnpm -r check && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace"
   },

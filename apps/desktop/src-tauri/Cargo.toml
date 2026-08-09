@@ -1,18 +1,18 @@
 [package]
-name = "local-tab-transcriber"
+name = "tabtapcap"
 version = "0.1.0"
 description = "Local-only Chrome tab transcription for macOS"
 authors = ["TabTapCap"]
 edition = "2024"
 
 [lib]
-name = "local_tab_transcriber_lib"
+name = "tabtapcap_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-local-transcriber-server = { path = "../../../crates/transcriber-server" }
+tabtapcap-server = { path = "../../../crates/transcriber-server" }
 tauri = { version = "2", features = [] }
 tauri-plugin-single-instance = "2"

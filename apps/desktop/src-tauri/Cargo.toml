@@ -2,7 +2,7 @@
 name = "local-tab-transcriber"
 version = "0.1.0"
 description = "Local-only Chrome tab transcription for macOS"
-authors = ["Local Tab Transcriber"]
+authors = ["TabTapCap"]
 edition = "2024"
 
 [lib]

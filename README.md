@@ -1,4 +1,4 @@
-# Local Tab Transcriber
+# TabTapCap
 
 Chromeの現在のタブ音声をMac上だけで文字起こしし、句読点・文・段落を整えた日本語テキストとWebVTTを編集・保存するローカルアプリです。
 
@@ -31,7 +31,7 @@ pnpm --filter @local-transcriber/extension build
 生成物は次の場所です。
 
 ```text
-target/release/bundle/macos/Local Tab Transcriber.app
+target/release/bundle/macos/TabTapCap.app
 apps/extension/dist
 ```
 

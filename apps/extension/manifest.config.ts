@@ -2,7 +2,7 @@ import { defineManifest } from "@crxjs/vite-plugin";
 
 export default defineManifest({
   manifest_version: 3,
-  name: "Local Tab Transcriber",
+  name: "TabTapCap",
   description: "現在のタブ音声をMac上だけで文字起こしします。",
   version: "0.1.0",
   minimum_chrome_version: "116",
@@ -14,7 +14,7 @@ export default defineManifest({
   },
   action: {
     default_popup: "src/popup.html",
-    default_title: "Local Tab Transcriber"
+    default_title: "TabTapCap"
   },
   content_security_policy: {
     extension_pages:
@@ -26,4 +26,3 @@ export default defineManifest({
     "128": "icons/icon-128.png"
   }
 });
-

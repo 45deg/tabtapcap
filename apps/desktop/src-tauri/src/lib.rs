@@ -156,7 +156,7 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("failed to run Local Tab Transcriber");
+        .expect("failed to run TabTapCap");
 }
 
 #[cfg(test)]

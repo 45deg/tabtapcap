@@ -137,10 +137,14 @@ fn apple_locale(language: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use std::fs;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    use super::{AppleSpeech, apple_locale};
+    #[cfg(unix)]
+    use super::AppleSpeech;
+    use super::apple_locale;
 
     #[test]
     fn maps_app_language_to_apple_locale() {
@@ -148,6 +152,7 @@ mod tests {
         assert_eq!(apple_locale("auto"), "ja-JP");
     }
 
+    #[cfg(unix)]
     #[test]
     fn reads_status_and_transcript_from_sidecar_json() {
         let directory = tempfile::tempdir().expect("temporary directory");

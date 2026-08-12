@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
-    build_apple_speech_sidecar();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        build_apple_speech_sidecar();
+    }
     tauri_build::build()
 }
 

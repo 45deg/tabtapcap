@@ -195,12 +195,7 @@ fn router(state: Arc<ServerState>) -> Router {
         .layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::predicate(|origin, _| {
-                    origin.to_str().is_ok_and(|value| {
-                        value.starts_with("chrome-extension://")
-                            || value.starts_with("http://127.0.0.1:")
-                            || value.starts_with("http://localhost:")
-                            || matches!(value, "tauri://localhost" | "https://tauri.localhost")
-                    })
+                    origin.to_str().is_ok_and(is_allowed_origin)
                 }))
                 .allow_methods(Any)
                 .allow_headers(Any),
@@ -969,6 +964,16 @@ fn require_local_control(headers: &HeaderMap) -> Result<(), ApiError> {
     }
 }
 
+fn is_allowed_origin(origin: &str) -> bool {
+    origin.starts_with("chrome-extension://")
+        || origin.starts_with("http://127.0.0.1:")
+        || origin.starts_with("http://localhost:")
+        || matches!(
+            origin,
+            "tauri://localhost" | "http://tauri.localhost" | "https://tauri.localhost"
+        )
+}
+
 fn check_websocket_origin(headers: &HeaderMap) -> Result<(), ApiError> {
     let Some(origin) = headers
         .get(header::ORIGIN)
@@ -976,11 +981,7 @@ fn check_websocket_origin(headers: &HeaderMap) -> Result<(), ApiError> {
     else {
         return Ok(());
     };
-    if origin.starts_with("chrome-extension://")
-        || origin.starts_with("http://127.0.0.1:")
-        || origin.starts_with("http://localhost:")
-        || matches!(origin, "tauri://localhost" | "https://tauri.localhost")
-    {
+    if is_allowed_origin(origin) {
         Ok(())
     } else {
         Err(ApiError {
@@ -1002,7 +1003,15 @@ impl SettingsExtension for AppSettings {
 
 #[cfg(test)]
 mod tests {
-    use super::audio_level;
+    use super::{audio_level, is_allowed_origin};
+
+    #[test]
+    fn allows_tauri_origins_on_every_desktop_platform() {
+        assert!(is_allowed_origin("http://tauri.localhost"));
+        assert!(is_allowed_origin("https://tauri.localhost"));
+        assert!(is_allowed_origin("tauri://localhost"));
+        assert!(!is_allowed_origin("http://tauri.localhost.evil.example"));
+    }
 
     #[test]
     fn derives_perceptual_audio_level_from_pcm_s16le() {

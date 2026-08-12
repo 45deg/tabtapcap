@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "targets": ["app"],
+    "externalBin": [
+      "binaries/apple-speech-cli"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
+    }
+  }
+}

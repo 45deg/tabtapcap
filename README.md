@@ -1,22 +1,48 @@
 # TabTapCap
 
-Chromeの現在のタブ音声をMac上だけで文字起こしし、句読点・文・段落を整えた日本語テキストとWebVTTを編集・保存するローカルアプリです。
+Chromeの現在のタブ音声をWindowsまたはMac上だけで文字起こしし、句読点・文・段落を整えた日本語テキストとWebVTTを編集・保存するローカルアプリです。
 
 ## 開発状況
 
-本プロジェクトは開発中です。現在はApple Silicon Macを対象としており、一般配布向けに署名・notarizationを行ったバイナリは提供していません。利用する場合はソースコードからアプリとChrome拡張をビルドしてください。
+本プロジェクトは開発中です。現在はx64版WindowsとApple Silicon Macを対象としており、一般配布向けに署名・notarizationを行ったバイナリは提供していません。利用する場合はソースコードからアプリとChrome拡張をビルドしてください。
 
 ![文字起こし結果を編集してTXT、WebVTT、JSONへ保存できるアプリ画面](docs/images/app-demo.jpg)
 
 ```text
 apps/
-  desktop/    React ViewerとTauri macOSアプリ
+  desktop/    React ViewerとTauriデスクトップアプリ
   extension/  Chromeタブ音声の取得と録音操作
 crates/
   transcriber-server/  Rust API、whisper.cpp、VAD、文章整形、SQLite
 ```
 
 録音・モデル・設定・文字起こしは外部APIへ送信されません。モデルの初回ダウンロードだけインターネットへ接続します。
+
+## Windowsアプリとして使う
+
+必要な開発環境は、x64版Windows 10/11、Node.js 24以降、pnpm 11、Rust（MSVC toolchain）、Visual Studio 2022以降、CMake、LLVM、[LunarG Vulkan SDK](https://vulkan.lunarg.com/sdk/home#windows)です。Visual Studio Installerでは「C++によるデスクトップ開発」、「Windows用C++ CMakeツール」、LLVM/Clangを有効にしてください。Vulkan SDKのインストール後は、新しいPowerShellを開いて`VULKAN_SDK`環境変数を反映してください。実行にはMicrosoft Edge WebView2 Runtimeと、GPUメーカーが提供するVulkan対応グラフィックスドライバーも必要です（通常はインストール済みです）。
+
+```powershell
+pnpm install
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\build-windows.ps1
+```
+
+`build-windows.ps1`は空いているドライブ文字をビルド中だけユーザーディレクトリへ割り当て、Vulkanシェーダー生成時のWindowsパス長制限を回避します。処理終了時に割り当ては解除されます。内部で`windows-env.ps1`を呼び、Visual Studio Installerから最新のMSVC、x64版LLVM、CMake、Ninja、Windows SDKとVulkan SDKを検出して、WhisperとParakeetが同じ静的Cランタイムを使うよう環境を構成します。拡張機能もビルドし、デスクトップアプリへ組み込むZIPを更新します。
+
+生成物は次の場所です。
+
+```text
+%USERPROFILE%\.tabtapcap-build\release\bundle\nsis\TabTapCap_<version>_x64-setup.exe
+apps/extension/dist
+```
+
+1. NSISインストーラーを実行し、TabTapCapを起動します。Rust APIはTauriプロセス内で`127.0.0.1:8765`に起動します。
+2. アプリの「設定」から「拡張機能を出力」を押し、ダウンロードされたZIPを展開します。`chrome://extensions`でデベロッパーモードを有効にし、展開したフォルダーを「パッケージ化されていない拡張機能」として読み込みます。ソースからビルドした場合は`apps/extension/dist`も直接読み込めます。
+3. アプリの「モデル」で使用するWhisperモデルとSilero VAD、またはNVIDIA Parakeet 0.6B Japaneseをダウンロードします。Apple SpeechはmacOS専用です。
+4. 「設定」で認識モデルを選び、Chromeの対象タブから録音を開始します。
+
+データ、設定、モデル、ログは通常、`%APPDATA%\app.tabtapcap.desktop\`以下に保存されます。
 
 ## Macアプリとして使う
 
@@ -25,7 +51,6 @@ crates/
 ```bash
 pnpm install
 pnpm tauri:build
-pnpm --filter @tabtapcap/extension build
 ```
 
 生成物は次の場所です。
@@ -85,7 +110,7 @@ Chromeとデスクトップの表示は、PCM区間の波形そのものでは�
 PCM16 → 16kHz mono WAV → whisper.cpp + Silero VAD / sherpa-onnx + Parakeet / Apple Speech → 句読点・文区切り・段落生成
 ```
 
-Whisperは`whisper-rs`のMetalビルドを使用し、tiny、base、small、medium、large-v3、large-v3 turboから選べます。Parakeetは公式sherpa-onnx変換版の日本語CTC int8モデルをCPUで実行します。macOS 26以降では、OS管理の`SpeechAnalyzer`、`SpeechTranscriber`、`SpeechDetector`も選択できます。推論時は選択した1モデルだけを使用します。
+WhisperはmacOSでは`whisper-rs`のMetalビルド、WindowsではVulkanビルドを使用し、tiny、base、small、medium、large-v3、large-v3 turboから選べます。WindowsではNVIDIA、AMD、IntelのVulkan対応GPUを自動的に使用し、対応GPUが見つからない場合はCPUへフォールバックします。Parakeetは公式sherpa-onnx変換版の日本語CTC int8モデルをCPUで実行します。macOS 26以降では、OS管理の`SpeechAnalyzer`、`SpeechTranscriber`、`SpeechDetector`も選択できます。推論時は選択した1モデルだけを使用します。
 
 処理状態は`capturing`、`finalizing`、`transcribing`、`formatting`、`ready`の順に更新され、イベントWebSocketからデスクトップへ通知されます。文章整形は無音時間と文字数に基づく決定的な処理で、元の発言を言い換えません。結果はSQLiteを正本として、TXT、VTT、JSONへ出力できます。Parakeetモデルと推論ランタイムのライセンス情報は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
 

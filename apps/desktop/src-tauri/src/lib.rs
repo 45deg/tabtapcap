@@ -8,6 +8,8 @@ use tauri::{AppHandle, Manager, State};
 
 struct AppLogPath(PathBuf);
 
+const EXTENSION_BUNDLE: &[u8] = include_bytes!("../resources/tabtapcap-extension.zip");
+
 fn apple_speech_sidecar_path() -> Option<PathBuf> {
     std::env::var_os("TABTAPCAP_APPLE_SPEECH_PATH")
         .map(PathBuf::from)
@@ -98,6 +100,41 @@ fn available_export_path(downloads_dir: &Path, file_name: &str) -> Result<PathBu
     Err("同名の保存ファイルが多すぎます。".into())
 }
 
+fn available_extension_path(downloads_dir: &Path) -> Result<PathBuf, String> {
+    let file_name = format!("TabTapCap-extension-{}.zip", env!("CARGO_PKG_VERSION"));
+    let candidate = downloads_dir.join(&file_name);
+    if !candidate.exists() {
+        return Ok(candidate);
+    }
+    for suffix in 2..=999 {
+        let candidate = downloads_dir.join(format!(
+            "TabTapCap-extension-{} ({suffix}).zip",
+            env!("CARGO_PKG_VERSION")
+        ));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err("同名の拡張機能バンドルが多すぎます。".into())
+}
+
+#[tauri::command]
+fn export_extension_bundle(app: AppHandle) -> Result<String, String> {
+    let downloads_dir = app
+        .path()
+        .download_dir()
+        .map_err(|error| format!("ダウンロードフォルダを開けません: {error}"))?;
+    let path = available_extension_path(&downloads_dir)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|error| format!("拡張機能バンドルを作成できません: {error}"))?;
+    file.write_all(EXTENSION_BUNDLE)
+        .map_err(|error| format!("拡張機能バンドルを保存できません: {error}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 fn save_export(app: AppHandle, file_name: String, contents: String) -> Result<String, String> {
     let downloads_dir = app
@@ -125,7 +162,11 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .invoke_handler(tauri::generate_handler![read_app_log, save_export])
+        .invoke_handler(tauri::generate_handler![
+            read_app_log,
+            save_export,
+            export_extension_bundle
+        ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let models_dir = data_dir.join("models");
@@ -161,8 +202,21 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::available_export_path;
+    use super::{EXTENSION_BUNDLE, available_export_path, available_extension_path};
     use std::path::Path;
+
+    #[test]
+    fn validates_embedded_extension_bundle() {
+        assert!(EXTENSION_BUNDLE.starts_with(b"PK"));
+        let downloads = Path::new("/path/that/does/not/exist");
+        assert_eq!(
+            available_extension_path(downloads).unwrap(),
+            downloads.join(format!(
+                "TabTapCap-extension-{}.zip",
+                env!("CARGO_PKG_VERSION")
+            ))
+        );
+    }
 
     #[test]
     fn validates_export_file_names() {

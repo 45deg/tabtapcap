@@ -1,10 +1,15 @@
 import { defineManifest } from "@crxjs/vite-plugin";
 
+const version = process.env.npm_package_version;
+if (!version) {
+  throw new Error("npm_package_version is required to build the extension manifest");
+}
+
 export default defineManifest({
   manifest_version: 3,
   name: "TabTapCap",
   description: "現在のタブ音声をMac上だけで文字起こしします。",
-  version: "0.1.0",
+  version,
   minimum_chrome_version: "116",
   permissions: ["activeTab", "tabCapture", "offscreen", "storage"],
   host_permissions: ["http://127.0.0.1/*", "ws://127.0.0.1/*"],

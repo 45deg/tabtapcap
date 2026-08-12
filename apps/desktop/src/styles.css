@@ -815,6 +815,7 @@ progress {
   font-size: 13px;
 }
 
+.utility-card,
 .data-deletion {
   margin-top: 36px;
   padding: 20px;
@@ -827,11 +828,13 @@ progress {
   background: #fff;
 }
 
+.utility-card h3,
 .data-deletion h3 {
   margin: 0;
   font-size: 17px;
 }
 
+.utility-card p,
 .data-deletion p {
   max-width: 580px;
   margin: 7px 0 0;
@@ -840,6 +843,7 @@ progress {
   line-height: 1.6;
 }
 
+.utility-card-actions,
 .data-deletion-actions {
   flex: 0 0 auto;
   display: grid;
@@ -847,6 +851,7 @@ progress {
   gap: 8px;
 }
 
+.utility-card-actions span,
 .data-deletion-actions span {
   color: #248a3d;
   font-size: 13px;
@@ -893,11 +898,13 @@ progress {
     display: block;
   }
 
+  .utility-card,
   .data-deletion {
     align-items: stretch;
     flex-direction: column;
   }
 
+  .utility-card-actions,
   .data-deletion-actions {
     justify-items: stretch;
   }

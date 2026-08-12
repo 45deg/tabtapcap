@@ -14,6 +14,8 @@ export function SettingsPage({
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [exportingExtension, setExportingExtension] = useState(false);
+  const [extensionPath, setExtensionPath] = useState<string | null>(null);
 
   useEffect(() => {
     void Promise.all([api.settings(), api.models()])
@@ -175,6 +177,40 @@ export function SettingsPage({
           {saved && <span role="status">保存しました</span>}
         </div>
       </form>
+      <section className="utility-card" aria-labelledby="extension-export-title">
+        <div>
+          <h3 id="extension-export-title">Chrome拡張機能</h3>
+          <p>
+            このアプリと同じバージョンの拡張機能をZIPでダウンロードフォルダーへ出力します。
+            ZIPを展開し、Chromeの拡張機能画面で「パッケージ化されていない拡張機能」として読み込んでください。
+          </p>
+        </div>
+        <div className="utility-card-actions">
+          <button
+            type="button"
+            className="button primary"
+            disabled={exportingExtension}
+            onClick={async () => {
+              setExportingExtension(true);
+              setExtensionPath(null);
+              try {
+                setExtensionPath(await api.exportExtensionBundle());
+              } catch (reason) {
+                onError(reason instanceof Error ? reason.message : String(reason));
+              } finally {
+                setExportingExtension(false);
+              }
+            }}
+          >
+            {exportingExtension ? "出力しています…" : "拡張機能を出力"}
+          </button>
+          {extensionPath && (
+            <span role="status" title={extensionPath}>
+              ダウンロードフォルダーへ保存しました
+            </span>
+          )}
+        </div>
+      </section>
       <section className="data-deletion" aria-labelledby="data-deletion-title">
         <div>
           <h3 id="data-deletion-title">データの削除</h3>

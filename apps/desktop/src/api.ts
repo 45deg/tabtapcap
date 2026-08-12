@@ -113,6 +113,13 @@ export async function saveExportFile(
 }
 
 export const api = {
+  exportExtensionBundle: async () => {
+    if (!runningInTauri) {
+      throw new Error("Chrome拡張機能はデスクトップアプリから出力してください。");
+    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<string>("export_extension_bundle");
+  },
   health: () => request<Health>("/api/v1/health"),
   settings: () => request<AppSettings>("/api/v1/settings"),
   updateSettings: (settings: AppSettings) =>

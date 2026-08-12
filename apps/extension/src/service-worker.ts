@@ -48,6 +48,30 @@ async function setState(next: RecordingState): Promise<void> {
   });
 }
 
+async function resetOffscreenCapture(): Promise<void> {
+  const response = await chrome.runtime.sendMessage({
+    target: "offscreen",
+    type: "STOP_CAPTURE"
+  });
+  if (!response?.ok) {
+    throw new Error(response?.message ?? "以前の録音を停止できませんでした。");
+  }
+}
+
+async function getTabStreamId(tabId: number): Promise<string> {
+  try {
+    return await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("active stream")) {
+      throw new Error(
+        "このタブは既に録音されています。別のTabTapCap拡張機能またはタブ録音を停止してから、もう一度お試しください。"
+      );
+    }
+    throw error;
+  }
+}
+
 chrome.runtime.onMessage.addListener(
   (message: BackgroundMessage, _sender, sendResponse) => {
     void (async () => {
@@ -62,9 +86,8 @@ chrome.runtime.onMessage.addListener(
         }
         await setState({ status: "starting" });
         await ensureOffscreenDocument();
-        const streamId = await chrome.tabCapture.getMediaStreamId({
-          targetTabId: message.tabId
-        });
+        await resetOffscreenCapture();
+        const streamId = await getTabStreamId(message.tabId);
         const response = await chrome.runtime.sendMessage({
           target: "offscreen",
           type: "START_CAPTURE",

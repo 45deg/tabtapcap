@@ -52,6 +52,11 @@ function render(): void {
     dotElement.classList.add("error");
     statusElement.textContent = "エラー";
     detailElement.textContent = state.message;
+    if (state.sessionId) {
+      primaryButton.textContent = "停止を再試行";
+      primaryButton.classList.add("stop");
+      return;
+    }
   } else if (serverReady) {
     dotElement.classList.add("ready");
     statusElement.textContent = "録音できます";
@@ -113,12 +118,12 @@ async function initialize(): Promise<void> {
 
 primaryButton.addEventListener("click", async () => {
   primaryButton.disabled = true;
-  if (state.status === "recording" || state.status === "reconnecting") {
-    state = await send<RecordingState>({ type: "STOP_CAPTURE" });
+  if (state.status === "recording" || state.status === "reconnecting" || (state.status === "error" && state.sessionId)) {
+    await send({ type: "STOP_CAPTURE" });
   } else {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) return;
-    state = await send<RecordingState>({
+    await send({
       type: "START_CAPTURE",
       tabId: tab.id,
       tabTitle: tab.title ?? "無題の録音",
@@ -126,10 +131,15 @@ primaryButton.addEventListener("click", async () => {
       language
     });
   }
+  state = await send<RecordingState>({ type: "GET_STATE" });
   render();
 });
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage) => {
+  if (message.type === "CAPTURE_STATE") {
+    state = message.state;
+    render();
+  }
   if (
     message.type === "AUDIO_LEVEL_UPDATE" &&
     (state.status === "recording" || state.status === "reconnecting") &&

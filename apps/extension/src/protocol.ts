@@ -51,7 +51,7 @@ export type RecordingState =
       tabTitle: string;
     }
   | { status: "stopping"; sessionId: string }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; sessionId?: string };
 
 export type BackgroundMessage =
   | { type: "GET_STATE" }

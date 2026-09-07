@@ -57,7 +57,7 @@ chrome.runtime.onMessage.addListener(
         return;
       }
       if (message.type === "START_CAPTURE") {
-        if (state.status !== "idle" && state.status !== "error") {
+        if (state.status !== "idle" && !(state.status === "error" && !state.sessionId)) {
           throw new Error("別の録音が進行中です。");
         }
         await setState({ status: "starting" });
@@ -79,11 +79,12 @@ chrome.runtime.onMessage.addListener(
         return;
       }
       if (message.type === "STOP_CAPTURE") {
-        if (state.status !== "recording" && state.status !== "reconnecting") {
+        const sessionId = "sessionId" in state ? state.sessionId : undefined;
+        if (!sessionId || (state.status !== "recording" && state.status !== "reconnecting" && state.status !== "error")) {
           sendResponse(state);
           return;
         }
-        await setState({ status: "stopping", sessionId: state.sessionId });
+        await setState({ status: "stopping", sessionId });
         const response = await chrome.runtime.sendMessage({
           target: "offscreen",
           type: "STOP_CAPTURE"
@@ -103,7 +104,8 @@ chrome.runtime.onMessage.addListener(
       }
     })().catch(async (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
-      await setState({ status: "error", message });
+      const sessionId = "sessionId" in state ? state.sessionId : undefined;
+      await setState({ status: "error", message, ...(sessionId ? { sessionId } : {}) });
       sendResponse({ ok: false, message });
     });
     return true;

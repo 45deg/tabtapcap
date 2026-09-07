@@ -11,3 +11,5 @@ apps/desktop/src-tauri/binaries/tabtapcap-server-*
 apps/desktop/src-tauri/binaries/apple-speech-cli-*
 apps/desktop/src-tauri/resources/server/
 target/
+test-results/
+playwright-report/

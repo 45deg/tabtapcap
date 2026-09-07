@@ -9,9 +9,12 @@
     "tauri:build": "pnpm --filter @tabtapcap/desktop tauri:build",
     "build": "pnpm --filter @tabtapcap/desktop build && pnpm --filter @tabtapcap/extension build",
     "test": "pnpm -r test && cargo test --workspace",
+    "e2e": "cargo build -p tabtapcap-server && playwright test",
+    "e2e:report": "playwright show-report",
     "check": "pnpm -r check && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^9.2.1"
   }
 }

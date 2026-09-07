@@ -114,6 +114,8 @@ cargo run -p tabtapcap-server
 
 ## 主なコマンド
 
+ブラウザから録音・編集・保存を通す自動検証は`pnpm e2e`で実行できます。初回セットアップと検証範囲は[E2E検証](docs/e2e.md)を参照してください。
+
 ```bash
 pnpm build
 pnpm test

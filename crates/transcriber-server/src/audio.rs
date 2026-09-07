@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{BufReader, Read};
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
@@ -33,15 +34,28 @@ pub fn decode_frame(data: &[u8]) -> Result<AudioFrame<'_>> {
 }
 
 pub fn pcm_to_wav(partial_path: &Path, wav_path: &Path, sample_rate: u32) -> Result<Vec<f32>> {
-    let bytes = fs::read(partial_path).context("録音音声を読み込めませんでした")?;
-    if bytes.is_empty() || bytes.len() % 2 != 0 {
+    let file = fs::File::open(partial_path).context("録音音声を読み込めませんでした")?;
+    let byte_len = file.metadata()?.len();
+    if byte_len == 0 || byte_len % 2 != 0 || sample_rate == 0 {
         bail!("録音音声が空か破損しています。");
     }
-    let input: Vec<f32> = bytes
-        .chunks_exact(2)
-        .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / 32768.0)
-        .collect();
-    let output = resample_linear(&input, sample_rate, 16_000);
+    let sample_count = byte_len / 2;
+    let output_len = usize::try_from(
+        sample_count
+            .checked_mul(16_000)
+            .context("録音音声が大きすぎます。")?
+            / u64::from(sample_rate),
+    )?;
+    let mut reader = BufReader::with_capacity(64 * 1024, file);
+    let mut read_sample = || -> Result<f32> {
+        let mut bytes = [0; 2];
+        reader.read_exact(&mut bytes)?;
+        Ok(i16::from_le_bytes(bytes) as f32 / 32768.0)
+    };
+    let mut left = 0;
+    let mut a = read_sample()?;
+    let mut b = if sample_count > 1 { read_sample()? } else { a };
+    let mut output = Vec::with_capacity(output_len);
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: 16_000,
@@ -49,7 +63,21 @@ pub fn pcm_to_wav(partial_path: &Path, wav_path: &Path, sample_rate: u32) -> Res
         sample_format: hound::SampleFormat::Int,
     };
     let mut writer = hound::WavWriter::create(wav_path, spec)?;
-    for sample in &output {
+    for index in 0..output_len {
+        let position = index as f64 * sample_rate as f64 / 16_000.0;
+        let target = position.floor() as u64;
+        while left < target {
+            a = b;
+            left += 1;
+            b = if left + 1 < sample_count {
+                read_sample()?
+            } else {
+                a
+            };
+        }
+        let fraction = (position - target as f64) as f32;
+        let sample = a + (b - a) * fraction;
+        output.push(sample);
         writer.write_sample((sample.clamp(-1.0, 1.0) * 32767.0) as i16)?;
     }
     writer.finalize()?;
@@ -65,22 +93,5 @@ pub fn read_wav(path: &Path) -> Result<Vec<f32>> {
     reader
         .samples::<i16>()
         .map(|sample| Ok(sample? as f32 / 32768.0))
-        .collect()
-}
-
-fn resample_linear(input: &[f32], from: u32, to: u32) -> Vec<f32> {
-    if from == to {
-        return input.to_vec();
-    }
-    let output_len = ((input.len() as u64 * to as u64) / from as u64) as usize;
-    (0..output_len)
-        .map(|index| {
-            let position = index as f64 * from as f64 / to as f64;
-            let left = position.floor() as usize;
-            let fraction = (position - left as f64) as f32;
-            let a = input.get(left).copied().unwrap_or(0.0);
-            let b = input.get(left + 1).copied().unwrap_or(a);
-            a + (b - a) * fraction
-        })
         .collect()
 }

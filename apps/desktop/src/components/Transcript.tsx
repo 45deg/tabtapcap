@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { formatDuration } from "../format";
 import type { SessionDetail, Utterance } from "../types";
 
@@ -11,7 +11,7 @@ interface Props {
     text: string,
     speakerId: string,
     paragraphBreakBefore: boolean
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }
 
 function UtteranceEditor({
@@ -27,16 +27,15 @@ function UtteranceEditor({
   onSeek: () => void;
   onSave: Props["onSaveUtterance"];
 }) {
-  const [text, setText] = useState(utterance.edited_text ?? utterance.raw_text);
-  const [speakerId, setSpeakerId] = useState(utterance.speaker_id);
-  const [paragraphBreak, setParagraphBreak] = useState(utterance.paragraph_break_before);
+  const [edits, setEdits] = useState<{
+    text?: string;
+    speakerId?: string;
+    paragraphBreak?: boolean;
+  }>({});
+  const text = edits.text ?? utterance.edited_text ?? utterance.raw_text;
+  const speakerId = edits.speakerId ?? utterance.speaker_id;
+  const paragraphBreak = edits.paragraphBreak ?? utterance.paragraph_break_before;
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setText(utterance.edited_text ?? utterance.raw_text);
-    setSpeakerId(utterance.speaker_id);
-    setParagraphBreak(utterance.paragraph_break_before);
-  }, [utterance]);
 
   const changed =
     text !== (utterance.edited_text ?? utterance.raw_text) ||
@@ -52,7 +51,7 @@ function UtteranceEditor({
         {session.diarization_enabled && (
           <label>
             <span className="sr-only">話者</span>
-            <select value={speakerId} onChange={(event) => setSpeakerId(event.target.value)}>
+            <select value={speakerId} onChange={(event) => setEdits({ ...edits, speakerId: event.target.value })}>
               {session.speakers.map((speaker) => (
                 <option key={speaker.id} value={speaker.id}>
                   {speaker.display_name}
@@ -65,14 +64,14 @@ function UtteranceEditor({
           <input
             type="checkbox"
             checked={paragraphBreak}
-            onChange={(event) => setParagraphBreak(event.target.checked)}
+            onChange={(event) => setEdits({ ...edits, paragraphBreak: event.target.checked })}
           />
           段落
         </label>
       </div>
       <textarea
         value={text}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => setEdits({ ...edits, text: event.target.value })}
         aria-label={`${formatDuration(utterance.start_ms)}の発話`}
         rows={Math.max(2, Math.ceil(text.length / 44))}
       />
@@ -84,7 +83,14 @@ function UtteranceEditor({
           onClick={async () => {
             setSaving(true);
             try {
-              await onSave(utterance, text, speakerId, paragraphBreak);
+              if (await onSave(utterance, text, speakerId, paragraphBreak)) {
+                // Keep any changes typed while this save was in flight.
+                setEdits((current) => ({
+                  text: current.text === text ? undefined : current.text,
+                  speakerId: current.speakerId === speakerId ? undefined : current.speakerId,
+                  paragraphBreak: current.paragraphBreak === paragraphBreak ? undefined : current.paragraphBreak
+                }));
+              }
             } finally {
               setSaving(false);
             }

@@ -28,6 +28,9 @@ export default function App() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const connectionStartedAt = useRef(Date.now());
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const detailRequest = useRef(0);
 
   const refreshList = useCallback(async () => {
     const next = await api.sessions();
@@ -36,9 +39,19 @@ export default function App() {
   }, []);
 
   const refreshSession = useCallback(async (id: string) => {
-    const next = await api.session(id);
-    setSession(next);
-    setError(null);
+    const request = ++detailRequest.current;
+    try {
+      const next = await api.session(id);
+      if (selectedIdRef.current !== id || request !== detailRequest.current) return;
+      setSession((current) =>
+        current?.id === id && current.revision > next.revision ? current : next
+      );
+      setError(null);
+    } catch (reason) {
+      if (selectedIdRef.current === id && request === detailRequest.current) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -70,40 +83,60 @@ export default function App() {
       return;
     }
     history.replaceState(null, "", `?session=${selectedId}`);
-    void refreshSession(selectedId).catch((reason: Error) => setError(reason.message));
+    void refreshSession(selectedId);
   }, [connecting, selectedId, refreshSession]);
 
   useEffect(() => {
     if (connecting || !selectedId) return;
-    const socket = new WebSocket(
-      serverWebSocketUrl(`/ws/v1/events?sessionId=${selectedId}`)
-    );
-    socket.onmessage = (message) => {
-      const event = JSON.parse(message.data) as SessionEvent;
-      if (event.type === "draft") setDraft(event.text);
-      if (event.type === "audio_level") {
-        setAudioLevel({ sequence: event.sequence, level: event.level });
-      }
-      if (event.type === "session_state") {
-        setSession((current) =>
-          current
-            ? {
-                ...current,
-                state: event.state,
-                progress: event.progress,
-                revision: event.revision,
-                error_code: event.errorCode,
-                error_message: event.errorMessage
-              }
-            : current
-        );
-        if (event.state === "ready" || event.state === "error") {
-          void refreshSession(selectedId);
-          void refreshList();
+    let disposed = false;
+    let socket: WebSocket;
+    let reconnectTimer: number | undefined;
+    const connect = () => {
+      socket = new WebSocket(
+        serverWebSocketUrl(`/ws/v1/events?sessionId=${selectedId}`)
+      );
+      socket.onopen = () => {
+        if (!disposed) void refreshSession(selectedId);
+      };
+      socket.onclose = () => {
+        if (!disposed) reconnectTimer = window.setTimeout(connect, 2_000);
+      };
+      socket.onmessage = (message) => {
+        if (disposed || selectedIdRef.current !== selectedId) return;
+        const event = JSON.parse(message.data) as SessionEvent;
+        if (event.sessionId !== selectedId) return;
+        if (event.type === "draft") setDraft(event.text);
+        if (event.type === "audio_level") {
+          setAudioLevel({ sequence: event.sequence, level: event.level });
         }
-      }
+        if (event.type === "session_state") {
+          setSession((current) =>
+            current?.id === selectedId && event.revision >= current.revision
+              ? {
+                  ...current,
+                  state: event.state,
+                  progress: event.progress,
+                  revision: event.revision,
+                  error_code: event.errorCode,
+                  error_message: event.errorMessage
+                }
+              : current
+          );
+          if (event.state === "ready" || event.state === "error") {
+            void refreshSession(selectedId);
+            void refreshList().catch((reason: Error) => {
+              if (!disposed) setError(reason.message);
+            });
+          }
+        }
+      };
     };
-    return () => socket.close();
+    connect();
+    return () => {
+      disposed = true;
+      window.clearTimeout(reconnectTimer);
+      socket.close();
+    };
   }, [connecting, selectedId, refreshList, refreshSession]);
 
   const activeUtteranceId = useMemo(
@@ -118,6 +151,9 @@ export default function App() {
     setConfirmingDelete(false);
     setActiveAction(null);
     setAudioLevel({ sequence: 0, level: 0 });
+    setDraft("");
+    setCurrentTimeMs(0);
+    setSeekRequest(null);
   }, [selectedId]);
 
   async function runSessionAction(action: string, operation: () => Promise<void>): Promise<void> {
@@ -134,15 +170,22 @@ export default function App() {
     }
   }
 
-  async function runMutation(action: () => Promise<SessionDetail>): Promise<void> {
+  async function runMutation(action: () => Promise<SessionDetail>): Promise<boolean> {
     try {
       const next = await action();
-      setSession(next);
+      if (next.id === selectedIdRef.current) {
+        setSession((current) =>
+          current?.id === next.id && current.revision > next.revision ? current : next
+        );
+      }
       await refreshList();
+      return true;
     } catch (reason) {
+      if (selectedIdRef.current !== selectedId) return false;
       const message = reason instanceof Error ? reason.message : String(reason);
       setError(message);
       if (message.includes("再読み込み") && selectedId) await refreshSession(selectedId);
+      return false;
     }
   }
 
@@ -221,9 +264,9 @@ export default function App() {
               }}
             />
           </section>
-        ) : !session ? (
+        ) : !session || session.id !== selectedId ? (
           <div className="welcome">
-            <h2>{connecting ? "ローカルサーバーを起動しています" : "録音を選択してください"}</h2>
+            <h2>{connecting ? "ローカルサーバーを起動しています" : selectedId ? "録音を読み込んでいます…" : "録音を選択してください"}</h2>
             <p>
               {connecting
                 ? "初回起動は少し時間がかかります。この画面のままお待ちください。"
@@ -408,7 +451,7 @@ export default function App() {
                 speakerId,
                 paragraphBreakBefore
               ) => {
-                await runMutation(() =>
+                return runMutation(() =>
                   api.updateUtterance(
                     session,
                     utterance.id,

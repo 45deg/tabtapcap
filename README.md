@@ -1,5 +1,9 @@
 # TabTapCap
 
+SwiftUI 版では、macOS 26 以降の Apple Silicon Mac で アプリの音声やシステム音声を録音し、日本語の文字起こしを編集・保存できます。[SwiftUI 版のビルドと使い方](apps/macos/README.md)
+
+以下は Chrome 拡張と Tauri 版の説明です。
+
 Chromeの現在のタブ音声をMac上だけで文字起こしし、句読点・文・段落を整えた日本語テキストとWebVTTを編集・保存するローカルアプリです。
 
 ## 開発状況

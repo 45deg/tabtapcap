@@ -1,0 +1,2 @@
+"NSAudioCaptureUsageDescription" = "Record the selected audio and transcribe it on this Mac.";
+"NSSpeechRecognitionUsageDescription" = "Convert recorded audio into text on this Mac.";

@@ -1,0 +1,2 @@
+"NSAudioCaptureUsageDescription" = "選択した音声を録音し、この Mac 上で文字起こしするために使用します。";
+"NSSpeechRecognitionUsageDescription" = "録音した音声をこの Mac 上でテキストに変換します。";

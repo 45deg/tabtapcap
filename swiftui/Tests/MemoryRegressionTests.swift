@@ -1,5 +1,5 @@
-// Covers bounded live updates, index migration/invalidation, lazy body loading,
-// draft preservation, cancelled selection reads, and a large synthetic library.
+// Covers bounded live updates, library reset, index migration/invalidation,
+// lazy body loading, draft preservation, cancelled reads, and a large library.
 // OptimizationRegressionTests covers asynchronous saves and playback isolation.
 import Darwin
 import Foundation
@@ -11,10 +11,11 @@ struct MemoryRegressionTests {
         let directory = FileManager.default.temporaryDirectory.appending(path: "tabtapcap-memory-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
+        try testSaveAfterLibraryReset(in: directory)
         try await testLibraryAndSelection(directory.appending(path: "compatibility"))
         try await OptimizationRegressionTests.run(directory.appending(path: "optimization"))
         try await testLargeLibrary(directory.appending(path: "large"))
-        print("Passed: bounded live text, legacy migration, index invalidation, lazy reads, cancellation, drafts, large history")
+        print("Passed: bounded live text, saves after library reset, legacy migration, index invalidation, lazy reads, cancellation, drafts, large history")
     }
 
     static func testLiveWindow() throws {
@@ -47,6 +48,22 @@ struct MemoryRegressionTests {
         recording.utterances = [Utterance(startMs: 0, endMs: 1000, rawText: text)]
         try Data().write(to: directory.appending(path: recording.id.uuidString + ".wav"))
         return recording
+    }
+
+    static func testSaveAfterLibraryReset(in directory: URL) throws {
+        let recordings = directory.appending(path: "Recordings")
+        let library = RecordingLibrary(directory: recordings)
+        _ = try library.loadSummaries()
+        let previous = try fixture(recordings, title: "Before reset", text: "Previous transcript")
+        try library.save(previous)
+
+        // Simulate trashAll in the temporary directory without using the system Trash.
+        try FileManager.default.moveItem(at: recordings, to: directory.appending(path: "RemovedRecordings"))
+
+        let next = Recording(id: UUID(), title: "After reset", createdAt: .now, stoppedAt: .now)
+        try library.save(next)
+        let restored = try library.loadRecording(RecordingSummary(next))
+        precondition(restored.id == next.id && restored.title == "After reset")
     }
 
     @MainActor static func testLibraryAndSelection(_ directory: URL) async throws {

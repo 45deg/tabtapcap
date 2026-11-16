@@ -1,4 +1,5 @@
 // Stores transcript bodies separately from small, revision-checked list indexes.
+// save recreates the recording directory when a library reset has moved it away.
 // RecordingWorker serializes reads, writes, exports, and formatting off the main actor.
 // Recording keeps each recognition locale (legacy files default to Japanese).
 // Legacy speaker metadata is retained for saved recordings and JSON exports.
@@ -207,6 +208,7 @@ struct RecordingLibrary: Sendable {
     }
 
     func save(_ recording: Recording) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try JSONEncoder().encode(recording).write(to: metadata(recording.id), options: .atomic)
         // The body is authoritative. A missing or stale index is rebuilt next load.
         try? writeIndex(RecordingSummary(recording))

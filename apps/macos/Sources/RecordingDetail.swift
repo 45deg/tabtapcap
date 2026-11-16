@@ -1,13 +1,14 @@
 // Presents a saved recording, its editable transcript, and playback.
 // transcriptEditor opens one utterance at a time; saveEdits owns asynchronous saves.
 // PlaybackBar and PlaybackHighlight observe the clock; this view never reads it.
-// TranscriptUtterance skips unchanged rows, including their text splitting.
+// TranscriptDisplayPreferences styles the text and controls utterance timestamps.
 import AppKit
 import SwiftUI
 
 struct RecordingDetail: View {
     @ObservedObject var model: RecordingModel
     let recording: Recording
+    private var transcriptDisplay = TranscriptDisplayPreferences()
     private var draft: Recording? {
         get { model.drafts[recording.id] }
         nonmutating set { model.setDraft(newValue, baseline: recording) }
@@ -18,7 +19,6 @@ struct RecordingDetail: View {
     }
     @State private var player = Playback()
     @State private var selectedUtteranceID: UUID?
-    @State private var showsSpeakers = false
     @State private var confirmsDiscard = false
 
     var body: some View {
@@ -48,8 +48,20 @@ struct RecordingDetail: View {
             }
 
             Divider()
-            Text(localized("認識言語：%@", languageName(recording.recognitionLanguage)))
-                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Text(localized("認識言語：%@", languageName(recording.recognitionLanguage)))
+                    .font(.caption).foregroundStyle(.secondary)
+                if !recording.utterances.isEmpty {
+                    Spacer()
+                    Picker(localized("文字起こしの表示"), selection: transcriptDisplay.$showsTimestamps) {
+                        Text(localized("本文のみ")).tag(false)
+                        Text(localized("タイムスタンプ付き")).tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+            }
             if let editing = editingBinding {
                 transcriptEditor(editing).disabled(model.isBusy)
             } else if model.activeRecordingID == recording.id && !model.liveText.isEmpty && recording.utterances.isEmpty {
@@ -61,6 +73,7 @@ struct RecordingDetail: View {
                 }
                 ScrollView {
                     Text(model.liveText)
+                        .modifier(transcriptDisplay.style)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
                         .textSelection(.enabled)
@@ -103,91 +116,66 @@ struct RecordingDetail: View {
     }
 
     private func transcriptEditor(_ editing: Binding<Recording>) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button(localized("話者を管理"), systemImage: "person.2") { showsSpeakers = true }
-                .popover(isPresented: $showsSpeakers) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(localized("話者を管理")).font(.headline)
-                        ScrollView {
-                            VStack {
-                                ForEach(editing.speakers) { speaker in
-                                    TextField(localized("話者名"), text: speaker.displayName)
-                                }
-                            }
-                        }
-                        .frame(maxHeight: 240)
-                        Button(localized("話者を追加"), systemImage: "person.badge.plus") {
-                            let count = editing.wrappedValue.speakers.count
-                            editing.speakers.wrappedValue.append(Speaker(displayName: localized("話者 %d", count + 1)))
-                        }
-                        Button(localized("完了")) { showsSpeakers = false }
-                    }
-                    .padding(16).frame(width: 280)
-                }
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(editing.utterances) { utterance in
-                        if selectedUtteranceID == utterance.wrappedValue.id {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(editing.utterances) { utterance in
+                    if selectedUtteranceID == utterance.wrappedValue.id {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                if transcriptDisplay.showsTimestamps {
                                     Text(timestamp(utterance.wrappedValue.startMs)).monospacedDigit()
-                                    Spacer()
-                                    Button(localized("閉じる")) { selectedUtteranceID = nil }
                                 }
-                                Picker(localized("話者"), selection: utterance.speakerID) {
-                                    Text(localized("未割り当て")).tag(UUID?.none)
-                                    ForEach(editing.wrappedValue.speakers) { speaker in
-                                        Text(speaker.displayName).tag(Optional(speaker.id))
-                                    }
-                                }
-                                Toggle(localized("段落を区切る"), isOn: utterance.paragraphBreakBefore)
-                                TextEditor(text: Binding(
-                                    get: { utterance.wrappedValue.text },
-                                    set: { utterance.editedText.wrappedValue = $0 == utterance.wrappedValue.rawText ? nil : $0 }
-                                ))
-                                .accessibilityLabel(localized("%@ の発話", timestamp(utterance.wrappedValue.startMs)))
-                                .frame(minHeight: 100)
+                                Spacer()
+                                Button(localized("閉じる")) { selectedUtteranceID = nil }
                             }
-                            .padding(10)
-                            .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-                        } else {
-                            Button {
-                                selectedUtteranceID = utterance.wrappedValue.id
-                            } label: {
-                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Toggle(localized("段落を区切る"), isOn: utterance.paragraphBreakBefore)
+                            TextEditor(text: Binding(
+                                get: { utterance.wrappedValue.text },
+                                set: { utterance.editedText.wrappedValue = $0 == utterance.wrappedValue.rawText ? nil : $0 }
+                            ))
+                            .modifier(transcriptDisplay.style)
+                            .accessibilityLabel(transcriptDisplay.showsTimestamps
+                                ? localized("%@ の発話", timestamp(utterance.wrappedValue.startMs))
+                                : localized("発話の本文"))
+                            .frame(minHeight: 100)
+                        }
+                        .padding(10)
+                        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                    } else {
+                        Button {
+                            selectedUtteranceID = utterance.wrappedValue.id
+                        } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                if transcriptDisplay.showsTimestamps {
                                     Text(timestamp(utterance.wrappedValue.startMs))
                                         .monospacedDigit().foregroundStyle(.secondary)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        if let speaker = editing.wrappedValue.speakers.first(where: { $0.id == utterance.wrappedValue.speakerID }) {
-                                            Text(speaker.displayName).font(.caption).foregroundStyle(.secondary)
-                                        }
-                                        Text(utterance.wrappedValue.text)
-                                            .multilineTextAlignment(.leading)
-                                    }
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "pencil").foregroundStyle(.secondary)
                                 }
-                                .padding(8).frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
+                                Text(utterance.wrappedValue.text)
+                                    .modifier(transcriptDisplay.style)
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 0)
+                                Image(systemName: "pencil").foregroundStyle(.secondary)
                             }
-                            .buttonStyle(.plain)
-                            .help(localized("この発話を編集"))
-                            .contextMenu {
-                                Button(localized("発話をコピー"), systemImage: "doc.on.doc") { copyText(utterance.wrappedValue.text) }
-                                Button(localized("この位置から再生"), systemImage: "play") {
-                                    player.seek(to: Double(utterance.wrappedValue.startMs) / 1_000)
-                                    player.play()
-                                }
-                                .disabled(recording.duration == 0)
-                                Button(localized("この発話を編集"), systemImage: "pencil") { selectedUtteranceID = utterance.wrappedValue.id }
-                            }
-                            .padding(.top, utterance.wrappedValue.paragraphBreakBefore && utterance.wrappedValue.id != editing.wrappedValue.utterances.first?.id ? 10 : 0)
+                            .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .help(localized("この発話を編集"))
+                        .contextMenu {
+                            Button(localized("発話をコピー"), systemImage: "doc.on.doc") { copyText(utterance.wrappedValue.text) }
+                            Button(localized("この位置から再生"), systemImage: "play") {
+                                player.seek(to: Double(utterance.wrappedValue.startMs) / 1_000)
+                                player.play()
+                            }
+                            .disabled(recording.duration == 0)
+                            Button(localized("この発話を編集"), systemImage: "pencil") { selectedUtteranceID = utterance.wrappedValue.id }
+                        }
+                        .padding(.top, utterance.wrappedValue.paragraphBreakBefore && utterance.wrappedValue.id != editing.wrappedValue.utterances.first?.id ? 10 : 0)
                     }
                 }
             }
-            .scrollEdgeEffectHidden(true, for: .top)
         }
+        .scrollEdgeEffectHidden(true, for: .top)
     }
 
     @ViewBuilder private var emptyTranscript: some View {
@@ -230,7 +218,6 @@ struct RecordingDetail: View {
 
     private func endEditing() {
         selectedUtteranceID = nil
-        showsSpeakers = false
         draft = nil
     }
 
@@ -245,7 +232,6 @@ struct RecordingDetail: View {
                 Task {
                     if await model.saveEdits(recording.id), model.drafts[recording.id] == nil {
                         selectedUtteranceID = nil
-                        showsSpeakers = false
                     }
                 }
             }
@@ -274,10 +260,10 @@ struct RecordingDetail: View {
                 ForEach(recording.utterances) { utterance in
                     TranscriptUtterance(
                         utterance: utterance,
-                        speakerName: recording.speakers.first { $0.id == utterance.speakerID }?.displayName,
                         isFirst: utterance.id == recording.utterances.first?.id,
                         canPlay: recording.duration > 0, canEdit: !model.isBusy, player: player,
-                        language: model.interfaceLanguage
+                        language: model.interfaceLanguage, textStyle: transcriptDisplay.style,
+                        showsTimestamps: transcriptDisplay.showsTimestamps
                     ) {
                         Task {
                             await model.beginEditing(recording.id)

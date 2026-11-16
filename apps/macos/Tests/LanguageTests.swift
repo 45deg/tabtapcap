@@ -12,11 +12,11 @@ struct LanguageTests {
         }
         UserDefaults.standard.set("en", forKey: "interfaceLanguage")
         precondition(localized("録音を開始") == "Start Recording")
-        precondition(localized("話者 %d", 3) == "Speaker 3")
+        precondition(localized("文字サイズ：%d pt", 16) == "Text Size: 16 pt")
         precondition(localized("認識言語：%@", "English") == "Recognition language: English")
         UserDefaults.standard.set("ja", forKey: "interfaceLanguage")
         precondition(localized("録音を開始") == "録音を開始")
-        precondition(localized("話者 %d", 3) == "話者 3")
+        precondition(localized("文字サイズ：%d pt", 16) == "文字サイズ：16 pt")
         try checkCatalogs()
 
         var recording = Recording(id: UUID(), title: "Custom title", createdAt: Date(timeIntervalSince1970: 0))
@@ -26,14 +26,14 @@ struct LanguageTests {
         let restored = try JSONDecoder().decode(Recording.self, from: JSONEncoder().encode(recording))
         precondition(restored.recognitionLanguage == "en-US" && restored.title == "Custom title")
 
-        let speaker = UUID()
         let english = TranscriptFormatter.utterances(from: [
             SpeechSegment(text: "Hello, world!", start: 0, end: 1),
             SpeechSegment(text: "How are you?", start: 1.2, end: 2),
             SpeechSegment(text: "A new paragraph.", start: 5, end: 6)
-        ], settings: FormattingSettings(), speakerID: speaker, language: "en-US")
+        ], settings: FormattingSettings(), language: "en-US")
         precondition(english.map(\.text) == ["Hello, world!", "How are you?", "A new paragraph."])
         precondition(english.map(\.paragraphBreakBefore) == [true, false, true])
+        precondition(english.allSatisfy { $0.speakerID == nil })
         recording.utterances = english
         let text = String(decoding: try ExportFormat.txt.data(for: recording), as: UTF8.self)
         precondition(text.contains("Hello, world! How are you?"))
@@ -42,15 +42,24 @@ struct LanguageTests {
         let vtt = String(decoding: try ExportFormat.vtt.data(for: recording), as: UTF8.self)
         precondition(vtt.contains("00:00:00.000 --> 00:00:01.000\nHello, world!"))
 
+        // Previously assigned names still survive a save and JSON export.
+        let speaker = Speaker(displayName: "Interviewer")
+        recording.speakers = [speaker]
+        recording.utterances[0].speakerID = speaker.id
+        let previous = try JSONDecoder().decode(Recording.self, from: JSONEncoder().encode(recording))
+        let previousExport = try JSONSerialization.jsonObject(with: ExportFormat.json.data(for: previous)) as! [String: Any]
+        precondition((previousExport["speakers"] as? [[String: Any]])?.first?["display_name"] as? String == "Interviewer")
+        precondition((previousExport["utterances"] as? [[String: Any]])?.first?["speaker_id"] as? String == speaker.id.uuidString)
+
         let japanese = TranscriptFormatter.utterances(from: [
             SpeechSegment(text: "こんにちは", start: 0, end: 1),
             SpeechSegment(text: "世界", start: 1.6, end: 2)
-        ], settings: FormattingSettings(), speakerID: speaker)
+        ], settings: FormattingSettings())
         precondition(japanese.map(\.text) == ["こんにちは、世界。"])
         let chinese = TranscriptFormatter.utterances(from: [
             SpeechSegment(text: "你好！", start: 0, end: 1),
             SpeechSegment(text: "世界。", start: 1.2, end: 2)
-        ], settings: FormattingSettings(), speakerID: speaker, language: "zh-CN")
+        ], settings: FormattingSettings(), language: "zh-CN")
         recording.recognitionLocale = "zh-CN"
         recording.utterances = chinese
         let chineseText = String(decoding: try ExportFormat.txt.data(for: recording), as: UTF8.self)

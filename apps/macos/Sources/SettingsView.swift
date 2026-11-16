@@ -1,9 +1,10 @@
 // Keeps interface language separate from recognition language. Settings also expose
-// selected-model availability, formatting preferences, and library reset.
+// selected-model availability, transcript display, text formatting, and library reset.
 import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var model: RecordingModel
+    private var transcriptDisplay = TranscriptDisplayPreferences()
     @State private var draft = FormattingSettings()
     @State private var confirmReset = false
 
@@ -24,6 +25,17 @@ struct SettingsView: View {
                 LabeledContent("Apple Speech", value: model.modelStatus)
                 Text(localized("音声認識モデルの取得と更新は macOS が管理します。初回利用時はダウンロードが必要になる場合があります。"))
                     .foregroundStyle(.secondary)
+            }
+            Section(localized("文字起こしの表示")) {
+                Stepper(localized("文字サイズ：%d pt", transcriptDisplay.fontSize),
+                        value: transcriptDisplay.$fontSize, in: TranscriptDisplayPreferences.fontSizeRange)
+                Stepper(localized("行間：%d pt", transcriptDisplay.lineSpacing),
+                        value: transcriptDisplay.$lineSpacing, in: TranscriptDisplayPreferences.lineSpacingRange)
+                Button(localized("標準に戻す")) {
+                    transcriptDisplay.fontSize = TranscriptTextStyle.standard.fontSize
+                    transcriptDisplay.lineSpacing = TranscriptTextStyle.standard.lineSpacing
+                }
+                .disabled(transcriptDisplay.style == .standard)
             }
             Section(localized("文章整形")) {
                 Text(localized("読点と文区切りの調整は日本語に適用します。他の言語は認識結果の句読点を保持します。"))

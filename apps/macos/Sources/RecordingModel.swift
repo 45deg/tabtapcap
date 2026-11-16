@@ -342,12 +342,10 @@ final class RecordingModel: ObservableObject {
             let segments = try await SpeechRecognition.transcribe(url, language: recognitionLanguage) { [weak self] in
                 await self?.showAnalyzing()
             }
-            let speaker = result.speakers.first ?? Speaker(displayName: localized("話者 1"))
-            let utterances = await worker.format(segments, settings: settings, speakerID: speaker.id, language: recognitionLanguage)
+            let utterances = await worker.format(segments, settings: settings, language: recognitionLanguage)
             guard !utterances.isEmpty else {
                 throw RecordingError(message: localized("発話を認識できませんでした。"))
             }
-            if result.speakers.isEmpty { result.speakers = [speaker] }
             result.recognitionLocale = recognitionLanguage
             result.utterances = utterances
             result.error = nil

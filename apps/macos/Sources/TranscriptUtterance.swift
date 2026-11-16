@@ -5,38 +5,37 @@ import SwiftUI
 
 struct TranscriptUtterance: View, Equatable {
     let utterance: Utterance
-    let speakerName: String?
     let isFirst: Bool
     let canPlay: Bool
     let canEdit: Bool
     let player: Playback
     let language: InterfaceLanguage
+    let textStyle: TranscriptTextStyle
+    let showsTimestamps: Bool
     let edit: () -> Void
 
     // edit is keyed by the stable utterance/recording identity and loads the
     // current model draft when invoked; it never captures a stale body snapshot.
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.utterance == rhs.utterance && lhs.speakerName == rhs.speakerName &&
-        lhs.isFirst == rhs.isFirst && lhs.canPlay == rhs.canPlay &&
-        lhs.canEdit == rhs.canEdit && lhs.player === rhs.player && lhs.language == rhs.language
+        lhs.utterance == rhs.utterance && lhs.isFirst == rhs.isFirst && lhs.canPlay == rhs.canPlay &&
+        lhs.canEdit == rhs.canEdit && lhs.player === rhs.player && lhs.language == rhs.language &&
+        lhs.textStyle == rhs.textStyle && lhs.showsTimestamps == rhs.showsTimestamps
     }
 
     var body: some View {
         ForEach(Array(transcriptChunks(utterance.text).enumerated()), id: \.offset) { chunk, content in
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Button(timestamp(utterance.startMs)) { player.seek(to: Double(utterance.startMs) / 1_000) }
-                    .buttonStyle(.link)
-                    .monospacedDigit()
-                    .disabled(!canPlay || chunk != 0)
-                    .opacity(chunk == 0 ? 1 : 0)
-                    .accessibilityHidden(chunk != 0)
-                VStack(alignment: .leading, spacing: 3) {
-                    if chunk == 0, let speakerName {
-                        Text(speakerName).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Text(content).textSelection(.enabled)
-                        .accessibilityIdentifier("transcript")
+                if showsTimestamps {
+                    Button(timestamp(utterance.startMs)) { player.seek(to: Double(utterance.startMs) / 1_000) }
+                        .buttonStyle(.link)
+                        .monospacedDigit()
+                        .disabled(!canPlay || chunk != 0)
+                        .opacity(chunk == 0 ? 1 : 0)
+                        .accessibilityHidden(chunk != 0)
                 }
+                Text(content).textSelection(.enabled)
+                    .modifier(textStyle)
+                    .accessibilityIdentifier("transcript")
                 Spacer(minLength: 0)
             }
             .padding(8)

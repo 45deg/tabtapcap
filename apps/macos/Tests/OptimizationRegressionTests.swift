@@ -82,14 +82,13 @@ enum OptimizationRegressionTests {
 
     private static func testFormattingAndExport(_ directory: URL) async throws {
         let worker = RecordingWorker()
-        let speakerID = UUID()
         let utterances = await worker.format([
             SpeechSegment(text: "こんにちは", start: 0, end: 1),
             SpeechSegment(text: "世界", start: 1.6, end: 2)
-        ], settings: FormattingSettings(), speakerID: speakerID, language: "ja-JP")
+        ], settings: FormattingSettings(), language: "ja-JP")
         precondition(utterances.map(\.text) == ["こんにちは、世界。"])
         precondition(utterances[0].startMs == 0 && utterances[0].endMs == 2000)
-        precondition(utterances[0].speakerID == speakerID)
+        precondition(utterances[0].speakerID == nil)
         var recording = Recording(id: UUID(), title: "Export", createdAt: .now)
         recording.utterances = utterances
         let textURL = directory.appending(path: "export.txt")

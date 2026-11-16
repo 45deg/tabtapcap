@@ -1,6 +1,7 @@
 // Stores transcript bodies separately from small, revision-checked list indexes.
 // RecordingWorker serializes reads, writes, exports, and formatting off the main actor.
 // Recording keeps each recognition locale (legacy files default to Japanese).
+// Legacy speaker metadata is retained for saved recordings and JSON exports.
 // TranscriptFormatter preserves non-Japanese punctuation; ExportFormat writes the saved text and locale.
 import AVFoundation
 import Foundation
@@ -258,9 +259,8 @@ actor RecordingWorker {
         return result
     }
 
-    func format(_ segments: [SpeechSegment], settings: FormattingSettings,
-                speakerID: UUID, language: String) -> [Utterance] {
-        TranscriptFormatter.utterances(from: segments, settings: settings, speakerID: speakerID, language: language)
+    func format(_ segments: [SpeechSegment], settings: FormattingSettings, language: String) -> [Utterance] {
+        TranscriptFormatter.utterances(from: segments, settings: settings, language: language)
     }
 
     func export(_ recording: Recording, format: ExportFormat, to url: URL) throws {
@@ -269,9 +269,9 @@ actor RecordingWorker {
 }
 
 enum TranscriptFormatter {
-    static func utterances(from segments: [SpeechSegment], settings: FormattingSettings, speakerID: UUID, language: String = "ja-JP") -> [Utterance] {
+    static func utterances(from segments: [SpeechSegment], settings: FormattingSettings, language: String = "ja-JP") -> [Utterance] {
         if !language.hasPrefix("ja") {
-            return recognizedSentences(from: segments, settings: settings, speakerID: speakerID)
+            return recognizedSentences(from: segments, settings: settings)
         }
         let terminal = "。！？!?"
         let punctuation = terminal + "、，,：:"
@@ -287,7 +287,7 @@ enum TranscriptFormatter {
             while let last = sentence.last, "、，,".contains(last) { sentence.removeLast() }
             guard let last = sentence.last else { return }
             if !terminal.contains(last) { sentence += "。" }
-            utterances.append(Utterance(startMs: start, endMs: end, rawText: sentence, speakerID: speakerID))
+            utterances.append(Utterance(startMs: start, endMs: end, rawText: sentence))
         }
 
         for segment in segments {
@@ -324,7 +324,7 @@ enum TranscriptFormatter {
     // Other languages retain Apple's punctuation. Each final result is a complete
     // span, avoiding Japanese punctuation insertion and loss of word boundaries.
     private static func recognizedSentences(
-        from segments: [SpeechSegment], settings: FormattingSettings, speakerID: UUID
+        from segments: [SpeechSegment], settings: FormattingSettings
     ) -> [Utterance] {
         var result: [Utterance] = []
         var paragraphLength = 0
@@ -335,8 +335,7 @@ enum TranscriptFormatter {
             let end = Int(max(segment.start, segment.end, 0) * 1_000)
             let paragraph = result.isEmpty || start - (result.last?.endMs ?? 0) >= settings.paragraphPause
                 || paragraphLength + text.count > settings.maxParagraphCharacters
-            result.append(Utterance(startMs: start, endMs: end, rawText: text,
-                                    speakerID: speakerID, paragraphBreakBefore: paragraph))
+            result.append(Utterance(startMs: start, endMs: end, rawText: text, paragraphBreakBefore: paragraph))
             paragraphLength = paragraph ? text.count : paragraphLength + text.count
         }
         return result

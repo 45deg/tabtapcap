@@ -1,6 +1,7 @@
 // Presents a saved recording, its editable transcript, and playback.
 // transcriptEditor opens one utterance at a time; saveEdits owns asynchronous saves.
 // PlaybackBar and PlaybackHighlight observe the clock; this view never reads it.
+// The playback bar stays below the scrollable transcript.
 // TranscriptDisplayPreferences styles the text and controls utterance timestamps.
 import AppKit
 import SwiftUI
@@ -41,10 +42,6 @@ struct RecordingDetail: View {
 
             if let error = recording.error, !recording.utterances.isEmpty {
                 Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.secondary)
-            }
-
-            if recording.stoppedAt != nil && recording.duration > 0 {
-                PlaybackBar(player: player, duration: recording.duration)
             }
 
             Divider()
@@ -95,6 +92,10 @@ struct RecordingDetail: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 transcript
+            }
+
+            if recording.stoppedAt != nil && recording.duration > 0 {
+                PlaybackBar(player: player, duration: recording.duration)
             }
         }
         .padding(18)

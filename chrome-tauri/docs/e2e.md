@@ -1,5 +1,7 @@
 # E2E検証
 
+以下のコマンドはリポジトリの `chrome-tauri/` で実行します。
+
 ```bash
 pnpm install
 pnpm exec playwright install chromium

@@ -6,10 +6,14 @@
 
 Apple Silicon の Mac と macOS 26 以降が必要です。ソースからのビルドには、macOS 26 以降に対応した Xcode を使います。
 
+リポジトリのルートで実行します。
+
 ```sh
-./apps/macos/build.sh
-open apps/macos/dist/TabTapCap.app
+./swiftui/build.sh
+open swiftui/dist/TabTapCap.app
 ```
+
+テストは `./swiftui/test.sh` で実行できます。
 
 ## 録音する
 

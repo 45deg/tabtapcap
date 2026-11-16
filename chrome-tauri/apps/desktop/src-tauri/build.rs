@@ -8,8 +8,7 @@ fn main() {
 
 fn build_apple_speech_sidecar() {
     let manifest_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("manifest dir"));
-    let source =
-        manifest_dir.join("../../../reference/apple-speech-cli/Sources/AppleSpeechCLI/main.swift");
+    let source = manifest_dir.join("sidecar/AppleSpeechCLI.swift");
     let target = std::env::var("TARGET").expect("cargo target");
     let swift_arch = match target.as_str() {
         "aarch64-apple-darwin" => "arm64",

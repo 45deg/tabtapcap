@@ -85,7 +85,6 @@
 "選択した言語の音声認識モデルを利用できません。" = "The speech model for the selected language is unavailable.";
 "選択した言語の音声認識モデルを選べませんでした。" = "Could not select a speech model for this language.";
 "録音" = "Recording";
-"録音 " = "Recording ";
 "録音が中断されました。保存済みの音声を再処理できます。" = "Recording was interrupted. You can reprocess the saved audio.";
 "録音の保存" = "Saving recording";
 "録音の開始" = "Starting recording";

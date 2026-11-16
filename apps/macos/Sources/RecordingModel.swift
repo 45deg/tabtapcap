@@ -2,6 +2,7 @@
 // Keeps only summaries, the selected body, and explicitly edited drafts in memory.
 // RecordingWorker serializes disk work and formatting off the main actor.
 // saveEdits owns the saving phase and reconciles drafts after the write finishes.
+// start uses RecordingTitle to name each new recording before saving its metadata.
 // Interface preferences and per-recording recognition locales remain independent;
 // RecordingMenu routes confirmed actions here by recording ID.
 import AppKit
@@ -228,10 +229,9 @@ final class RecordingModel: ObservableObject {
         message = nil
         captureSettings = settings
         let startedAt = Date.now
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        let recording = Recording(id: UUID(), title: localized("録音 ") + formatter.string(from: startedAt), createdAt: startedAt, audioFileExtension: "m4a", recognitionLocale: recognitionLanguage)
+        let title = await RecordingTitle.initial(for: source, at: startedAt)
+        let recording = Recording(id: UUID(), title: title, createdAt: startedAt,
+                                  audioFileExtension: "m4a", recognitionLocale: recognitionLanguage)
         let url = library.audioURL(for: recording)
         do {
             try await worker.save(recording, in: library)
